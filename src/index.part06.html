@@ -1,0 +1,321 @@
+  // Trusted club steering: if a neighbor club covers the number about as well
+  // and you hit it a lot more often, take it.
+  if (known && !situational && need > 39 && map[r.clubId]) {
+    const idx = order.indexOf(r.clubId);
+    const cur = map[r.clubId];
+    const ct = trustOf(cur);
+    let best = null;
+    [idx + 1, idx - 1].forEach(j => {
+      const id = order[j];
+      if (!id) return;
+      const nb = map[id];
+      if (id === "DR" && input.lie !== "tee") return;
+      const fits = j > idx ? (nb.yards - need <= 15) : (nb.yards + 8 >= need);
+      if (!fits) return;
+      const nt = trustOf(nb);
+      if (nt.n >= 3 && nt.score - ct.score >= 0.15 && (!best || nt.score > best.t.score)) best = { c: nb, t: nt };
+    });
+    if (best) {
+      r.trustLine = "Picked your trusted " + best.c.name + " over the " + cur.name + " (" + Math.round(best.t.score * 100) + "% vs " + Math.round(ct.score * 100) + "% hit). " + (best.c.yards > cur.yards ? "Swing easy." : "Full, smooth swing.");
+      r.clubId = best.c.id; r.club = best.c.name; r.tee = teeFor(best.c.id, input.lie);
+      r.note = sourceLabel(best.c) + " · " + best.c.yards + " · trusted";
+    }
+  }
+
+  // Driver guard
+  if (input.lie === "tee" && r.clubId === "DR" && driverBenched()) {
+    const alt = map["HY"] || map["5W"] || map["7I"] || map[order[order.length - 2]];
+    if (alt) {
+      r.clubId = alt.id; r.club = alt.name; r.tee = teeFor(alt.id, "tee");
+      r.sentence = oneSentence("Two drives missed today, so the " + (alt.short || alt.name) + " off the tee — fairway beats far", input);
+      r.note = "driver benched for this round";
+      r.guard = true;
+    }
+  }
+  r.how = howCardFor(r, input);
+  return r;
+}
+
+/* One line after Hit / Missed. */
+function replyFor(result, read) {
+  const c = clubById(read && read.clubId);
+  const kind = c ? c.kind : "";
+  const need = Number(read && read.ask && read.ask.yards) || 0;
+  const short = read && (read.chip || (need > 0 && need <= 30));
+  const seed = data.shots.length;
+  if (result === "hit") {
+    if (kind === "driver") return { text: pickOne(REPLIES.hitDriver, seed), cls: "" };
+    if (read && read.clubId === "PU") return { text: pickOne(REPLIES.hitPutt, seed), cls: "" };
+    if (short) return { text: pickOne(REPLIES.hitShort, seed), cls: "" };
+    return { text: pickOne(REPLIES.hit, seed), cls: "" };
+  }
+  if (kind === "driver") {
+    const m = driverMissesThisRound();
+    if (driverBenched() || m >= 2) return { text: REPLIES.missedDriver2[0], cls: "warnline" };
+    return { text: REPLIES.missedDriver1[0], cls: "missed" };
+  }
+  if (read && read.clubId === "PU") return { text: REPLIES.missedPutt[0], cls: "missed" };
+  if (short) return { text: pickOne(REPLIES.missedShort, seed), cls: "missed" };
+  return { text: pickOne(REPLIES.missed, seed), cls: "missed" };
+}
+
+/* ---- Quick start: one club's carry -> guesses for the rest ---- */
+function estimateFrom(clubId, carry, ids) {
+  const base = GAP_RATIO[clubId];
+  const out = {};
+  if (!base || !(carry > 0)) return out;
+  ids.forEach(id => {
+    const r = GAP_RATIO[id];
+    if (!r) return;
+    out[id] = Math.max(10, Math.round((carry * r / base) / 5) * 5);
+  });
+  out[clubId] = Math.round(carry);
+  return out;
+}
+function applyQuickStart(clubId, carry, never) {
+  const ids = data.clubs.map(c => c.id);
+  const est = never ? Object.assign({}, BEGINNER_CARRY) : estimateFrom(clubId, Number(carry), ids);
+  let changed = 0;
+  data.clubs.forEach(c => {
+    if (c.id === "PU" || est[c.id] == null) return;
+    if (c.source === "mine" || c.source === "range") return; // never overwrite real numbers
+    c.yards = est[c.id];
+    c.source = "guess";
+    c.est = false;
+    changed++;
+  });
+  if (!never && clubId) {
+    const c = clubById(clubId);
+    if (c && c.source !== "range") { c.yards = Math.round(Number(carry)); c.source = "mine"; }
+  }
+  save();
+  return changed;
+}
+
+/* ---- Range numbers ---- */
+function applyRangeClub(id, bucket) {
+  if (!bucket.yards.length) return null;
+  const med = medianOf(bucket.yards);
+  const c = clubById(id);
+  if (!c) return null;
+  c.rangeYardList = (c.rangeYardList || []).concat(bucket.yards).slice(-20);
+  c.rangeYards = med;
+  c.rangeDate = today();
+  if (c.source === "mine") {
+    c.rangePending = c.yards !== med;     // "mine" wins until you tap "use range number"
+  } else {
+    c.yards = med;
+    c.source = "range";
+    c.rangePending = false;
+  }
+  save();
+  return { club: c, med };
+}
+function useRangeNumber(id) {
+  const c = clubById(id);
+  if (!c || !c.rangeYards) return;
+  c.yards = c.rangeYards; c.source = "range"; c.rangePending = false;
+  save();
+}
+function setMine(id, yards) {
+  const c = clubById(id);
+  if (!c || !(yards > 0)) return;
+  c.yards = Math.round(yards); c.source = "mine";
+  c.rangePending = !!(c.rangeYards && c.rangeYards !== c.yards);
+  save();
+}
+
+/* ---- Courses & tees ---- */
+function teeNames(course) {
+  const sc = course && SCORECARDS[course.id];
+  return sc ? Object.keys(sc.tees) : [];
+}
+function courseHoles(course) {
+  if (!course) return [];
+  const sc = SCORECARDS[course.id];
+  if (sc) {
+    const teeName = sc.tees[course.tee] ? course.tee : (DEFAULT_TEE[course.id] || Object.keys(sc.tees)[0]);
+    const tee = sc.tees[teeName];
+    const par = tee.par || sc.par;
+    return tee.y.map((y, i) => {
+      const n = i + 1;
+      const ed = (course.holeEdits || {})[n] || {};
+      const edY = String(ed.yards == null ? "" : ed.yards).trim();
+      return {
+        n, par: edY && ed.par ? Number(ed.par) : par[i], hcp: sc.hcp[i],
+        yards: edY ? edY : (y == null ? "" : String(y)),
+        card: y == null ? "" : String(y), edited: !!edY, notes: ed.notes || ""
+      };
+    });
+  }
+  return (course.holes || []).map(h => ({ n: h.n, par: Number(h.par) || 4, yards: String(h.yards || ""), card: "", edited: !!h.yards, notes: h.notes || "" }));
+}
+function courseTotal(course) {
+  return courseHoles(course).reduce((a, h) => a + (Number(h.yards) || 0), 0);
+}
+function shortCourseName(c) { return c ? c.name.split("—").pop().trim() : ""; }
+
+/* ---- Live round (scorecard that survives a page reload) ---- */
+function ensureLive() {
+  if (!data.live || data.live.date !== today()) {
+    data.live = { date: today(), startedTs: Date.now(), courseId: data.activeCourseId || "", hole: 1, holes: Array.from({ length: 18 }, (_, i) => ({ n: i + 1, strokes: "", putts: "", pen: false })) };
+    save();
+  }
+  return data.live;
+}
+function liveTotals() {
+  const l = data.live;
+  if (!l) return { strokes: 0, putts: 0, pens: 0, holes: 0, toPar: 0 };
+  const course = data.courses.find(c => c.id === l.courseId);
+  const holes = courseHoles(course);
+  let strokes = 0, putts = 0, pens = 0, n = 0, toPar = 0;
+  l.holes.forEach(h => {
+    const s = Number(h.strokes);
+    if (s > 0) {
+      strokes += s; n++;
+      const hp = holes.find(x => x.n === h.n);
+      if (hp && hp.par) toPar += s - hp.par;
+    }
+    if (Number(h.putts) > 0) putts += Number(h.putts);
+    if (h.pen) pens++;
+  });
+  return { strokes, putts, pens, holes: n, toPar };
+}
+
+/* ---- Trends ---- */
+function trendStats() {
+  const scored = data.rounds.filter(r => Number(r.score) > 0);
+  const full = scored.filter(r => !r.holesPlayed || r.holesPlayed >= 18);
+  const avg = list => list.length ? Math.round(list.reduce((a, r) => a + Number(r.score), 0) / list.length) : null;
+  const counts = {};
+  data.rounds.slice(0, 10).forEach(r => (r.sideways || []).forEach(id => { counts[id] = (counts[id] || 0) + 1; }));
+  const top = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0] || null;
+  const puttRounds = data.rounds.filter(r => Number(r.putts) > 0);
+  const missClubs = {};
+  data.shots.slice(0, 60).forEach(s => { if (s.result === "missed") missClubs[s.club] = (missClubs[s.club] || 0) + 1; });
+  const worstClub = Object.keys(missClubs).sort((a, b) => missClubs[b] - missClubs[a])[0] || null;
+  return {
+    rounds: data.rounds.length,
+    avg: avg(full), avg5: avg(full.slice(0, 5)), best: full.length ? Math.min(...full.map(r => Number(r.score))) : null,
+    top, topCount: top ? counts[top] : 0, counts,
+    putts: puttRounds.length ? Math.round(puttRounds.reduce((a, r) => a + Number(r.putts), 0) / puttRounds.length) : null,
+    worstClub, worstCount: worstClub ? missClubs[worstClub] : 0
+  };
+}
+function sidewaysLabel(id) { const f = SIDEWAYS_V2.concat(SIDEWAYS).find(s => s[0] === id); return f ? f[1] : id; }
+
+/* ---- Pro: practice plan from the last round ---- */
+const PRACTICE_BLOCKS = {
+  contact: { title: "Solid contact · 10 balls", how: "iron", text: "8-iron half swings. Brush the grass after the ball. Count how many you catch clean." },
+  driver: { title: "Driver · 8 balls, then hybrid · 8", how: "driver", text: "Tee height half above the crown, 80% swing, hold the finish. Then the same with the hybrid off a low tee — that's your backup." },
+  chipping: { title: "Chipping · 15 balls", how: "chip", text: "One chip: 52, ball back, hands ahead. Land it on one spot and let it roll." },
+  putting: { title: "Putting · 10 minutes", how: "putt", text: "3-foot circle until you make 10 in a row. Then lag from 30 feet: stop within a putter length." },
+  hills: { title: "Uneven lies · 10 balls", how: "iron", text: "Find a slope at the edge of the range. Match shoulders to the slope, half swings, contact first." },
+  air: { title: "Getting it up · 10 balls", how: "iron", text: "9-iron, ball in the middle, weight forward. Hit down; let the loft lift it." },
+  trouble: { title: "Punch-out · 6 balls", how: "iron", text: "7-iron, ball back, hands ahead, waist-high swing. Keep it under an imaginary branch." },
+  contact2: { title: "Wedge distance · 10 balls", how: "pitch", text: "56 at 9 o'clock. Write the number you carry — that's your go-to layup." }
+};
+function proPlan() {
+  const last = data.rounds[0];
+  const ids = [];
+  (last && last.sideways || []).forEach(id => { if (PRACTICE_BLOCKS[id] && !ids.includes(id)) ids.push(id); });
+  // misses tapped on the course
+  const lastShots = last ? data.shots.filter(s => s.date === last.date) : data.shots.slice(0, 30);
+  const drMiss = lastShots.filter(s => s.clubId === "DR" && s.result === "missed").length;
+  if (drMiss >= 2 && !ids.includes("driver")) ids.push("driver");
+  const shortMiss = lastShots.filter(s => s.result === "missed" && ["52","56","58","54","SW","AW"].includes(s.clubId)).length;
+  if (shortMiss >= 2 && !ids.includes("chipping")) ids.push("chipping");
+  if (!ids.length) ids.push("contact", "contact2");
+  if (!ids.includes("putting")) ids.push("putting"); // putting is always in the plan
+  return { from: last ? last.date : "", blocks: ids.slice(0, 4).map(id => Object.assign({ id }, PRACTICE_BLOCKS[id])) };
+}
+
+/* ---- Putter fit ---- */
+function putterLengthAdvice() {
+  const len = Number(data.putterLengthIn);
+  const h = Number(data.golferHeightIn);
+  if (!len && !h) return null;
+  let lo, hi;
+  if (h) {
+    if (h < 68) { lo = 33; hi = 34; } else if (h < 72) { lo = 34; hi = 34.5; } else { lo = 35; hi = 35.5; }
+  }
+  if (len && h) {
+    if (len > hi + 0.5) return { title: "Probably too long (" + len + "\" for " + h + "\" tall)", body: "The chart says about " + lo + "–" + hi + "\". If you also choke down or it pokes your belly, have a shop cut it (~$" + PRICE_GUIDE.putter_cut.low + "–$" + PRICE_GUIDE.putter_cut.high + "). Don't buy a new putter for length." };
+    if (len < lo - 1) return { title: "Might be short — check posture first", body: "The chart says about " + lo + "–" + hi + "\". If you have to crouch, a longer putter may help, but stand taller first. Buying new is the last resort." };
+    return { title: "Length looks fine — keep it", body: "About " + len + "\" vs the " + lo + "–" + hi + "\" chart. Keep it unless you choke down or it hits your belly. If the grip is slick, just regrip." };
+  }
+  if (h) return { title: "Chart says about " + lo + "–" + hi + "\"", body: "Measure your putter (floor to the end of the grip) and compare. Posture check beats the chart." };
+  return { title: "Add your height for a chart check", body: "Then do the posture check: arms hang, grip meets your hands, eyes over the ball." };
+}
+
+/* ---- Help a friend ---- */
+const FRIEND_CLUBS = [
+  ["DR", "Driver"], ["5W", "Fairway wood"], ["HY", "Hybrid"], ["6I", "6-iron"], ["7I", "7-iron"], ["8I", "8-iron"], ["9I", "9-iron"], ["PW", "Pitching wedge"], ["56", "Sand wedge"]
+];
+function friendBag(f) {
+  const ids = FRIEND_CLUBS.map(x => x[0]);
+  const est = f.never || !(Number(f.carry) > 0) ? Object.assign({}, BEGINNER_CARRY) : estimateFrom(f.clubId || "7I", Number(f.carry), ids);
+  return FRIEND_CLUBS.filter(([id]) => est[id]).map(([id, name]) => ({ id, name, yards: est[id] }));
+}
+function friendPick(f, yards, unknown) {
+  const bag = friendBag(f).slice().sort((a, b) => a.yards - b.yards);
+  const need = Number(yards);
+  if (unknown || !(need > 0)) {
+    const c = bag.find(b => b.id === "HY") || bag.find(b => b.id === "7I") || bag[0];
+    return { club: c.name, line: "No number? The " + c.name.toLowerCase() + " and an easy swing. Hit it solid, not far." };
+  }
+  if (need <= 30) return { club: "9-iron or putter", line: "Inside 30: putt it if the grass is short, or a little bump with the 9-iron — like a long putt." };
+  const nonDriver = bag.filter(b => b.id !== "DR");
+  let c = nonDriver.find(b => b.yards + 5 >= need) || nonDriver[nonDriver.length - 1];
+  const line = c.yards + 12 < need
+    ? "That's farther than any club off the grass — the " + c.name.toLowerCase() + ", easy, and play the next one."
+    : "The " + c.name.toLowerCase() + ". One more club than you think, easy swing.";
+  return { club: c.name, line };
+}
+function friendCardText(f) {
+  const bag = friendBag(f);
+  const lines = [];
+  lines.push("Simple Caddie card for " + (f.name || "you"));
+  lines.push(f.never || !(Number(f.carry) > 0) ? "Starting numbers for a new golfer (guesses):" : "Your " + (FRIEND_CLUBS.find(x => x[0] === f.clubId) || ["", "club"])[1] + " goes " + f.carry + ", so roughly (guesses):");
+  bag.forEach(b => lines.push("  " + b.name + ": " + b.yards));
+  if (f.pick) lines.push("", "Shot pick: " + f.pick.club + " — " + f.pick.line);
+  lines.push("", "Rules that help:");
+  SIMPLIFY.slice(0, 5).forEach(r => lines.push("• " + r.t + " " + r.w));
+  lines.push("", "Hit the ball. Not far — solid.");
+  return lines.join("\n");
+}
+function simplifyText() {
+  return "Simplify the game\n\n" + SIMPLIFY.map(r => "• " + r.t + " " + r.w).join("\n");
+}
+function shareText(title, text) {
+  if (navigator.share) {
+    navigator.share({ title, text }).catch(() => {});
+    return;
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => alert("Copied. Paste it into a text message.")).catch(() => showCopyBox(text));
+    return;
+  }
+  showCopyBox(text);
+}
+function showCopyBox(text) {
+  ui.copyText = text;
+  render();
+}
+function topBar(title, back) {
+  return `<div class="top no-print"><button class="back" data-go="${back}">Back</button><div class="kicker">${esc(title)}</div><span></span></div>`;
+}
+
+function chipSvg(kind) {
+  if (kind === "loft") {
+    return `<svg viewBox="0 0 360 160" xmlns="http://www.w3.org/2000/svg" aria-label="Lofted chip diagram">
+      <rect x="0" y="110" width="220" height="50" fill="#c8b896"/>
+      <rect x="220" y="100" width="140" height="60" fill="#7d9b6a"/>
+      <text x="8" y="150" font-size="11" fill="#5e564c">fringe</text>
+      <text x="250" y="150" font-size="11" fill="#1b4332">green</text>
+      <circle cx="90" cy="108" r="6" fill="#f5f5f5" stroke="#1c1915"/>
+      <text x="70" y="98" font-size="11" fill="#1c1915">ball back</text>
+      <path d="M100 70 L100 108" stroke="#8a5a12" stroke-width="3"/>
+      <text x="106" y="88" font-size="11" fill="#8a5a12">hands ahead</text>
+      <path d="M90 108 Q180 40 250 105" fill="none" stroke="#1b4332" stroke-width="2" stroke-dasharray="4 3"/>
+      <circle cx="250" cy="105" r="5" fill="#1b4332"/>
