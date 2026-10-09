@@ -1,0 +1,121 @@
+   [CW-QNT]  callawaygolf.com press "Quantum" Jan 16 2026 — drivers from $649.99, fairways from $399.99,
+             hybrids from $349.99, irons from $1,149.99 (7 pc).
+   [CPO-ELY] callawaygolfpreowned.com Elyte hybrids (2025) — $98.51–$182.01 certified pre-owned.
+   [BR-G440] birdiereport.com Ping G440 irons review 2026 — $164/club steel (~$984 5-PW); compares Qi35 and Elyte (2025).
+   [GM-GI]   golfmonthly.com best game-improvement irons 2026; golfinsideruk.com — Quantum Max OS "best for high handicappers".
+   [HYB-26]  golfmonthly.com Quantum Max vs Qi4D Max hybrid; nationalclubgolfer.com Quantum Max OS hybrid review.
+   [GLIDE]   golfclubindex.com/ping/glide + 2ndswing.com — Glide 3.0 (2019) used ~$41–$83, avg $66.
+   [CBX]     2ndswing.com — CBX 2 used ~$80–$100; CBX ZipCore (launched Dec 2021, GolfWRX) used $97.99–$127.99.
+   [WEDGE26] breakingeighty.com best wedges 2026 (Cleveland CBZ = 5th-gen cavity wedge); Titleist SM11 press Jan 19 2026.
+   [PUTT]    stikswap / SidelineSwap / Play It Again Sports — Odyssey White Hot OG #7 (2023) used $60–$238;
+             prnewswire Odyssey Ai-ONE (Nov 2023, $299.99); 2ndswing/taylormadegolf Spider Tour Double Bend (2023, $349.99);
+             callawaygolf.com Odyssey Ai-DUAL (Jan 2026); scottycameron.com Phantom mallets (2026).
+   [FIT]     mygolfspy.com "Real cost of getting fitted 2026" + clubchampion.com/pricing — full bag $325–$475.
+   --------------------------------------------------------------------------- */
+const CLUB_GUIDE = {
+  lastChecked: "2026-10-09",
+  where: {
+    save: "Play It Again Sports, Facebook Marketplace, eBay. Or regrip what you have, or keep it.",
+    value: "Last year's model or certified pre-owned: 2nd Swing, Callaway Pre-Owned, GlobalGolf.",
+    nolimit: "Newest model plus a fitting (full-bag fitting about $325–$475 at Club Champion or True Spec [FIT]). Many shops take money off the fitting if you buy."
+  },
+  types: [
+    { id: "driver", type: "Driver", ids: ["DR"],
+      role: "Long par 4s and 5s off the tee. Yours is a Ping G425 Max — a keeper.",
+      keep: "You love the G425. Keep it; regrip it before anything else. Swap only if it cracks.",
+      save: [
+        { model: "Ping G425 Max", years: "2021", price: "$160–$322 used, avg $253", why: "The same head you already trust — a cheap spare or exact replacement.", src: "GCI-DR" },
+        { model: "Ping G425 SFT", years: "2021", price: "check listings", why: "Draw-biased G425 if a slice shows up in your data.", src: "GCI-DR" }
+      ],
+      value: [
+        { model: "Ping G440 Max", years: "2025", price: "one used sale $550 (Feb 2026)", why: "Direct G425 descendant — same forgiving idea, last year's model.", src: "GCI-G" },
+        { model: "Ping G430 Max", years: "2023", price: "check 2nd Swing / GlobalGolf", why: "Between your G425 and the G440; often discounted pre-owned.", src: "2S-PING" }
+      ],
+      nolimit: [
+        { model: "Ping G440 K", years: "2026", price: "fit at a Ping dealer", why: "Ping's most forgiving driver yet — the closest new thing to what you like.", src: "PING-K" },
+        { model: "TaylorMade Qi4D Max", years: "2026", price: "$649.99 new", why: "Max-forgiveness head of TaylorMade's newest family.", src: "TM-Q4D" },
+        { model: "Callaway Quantum Max", years: "2026", price: "from $649.99 new", why: "Callaway's newest; Max D version if you slice.", src: "CW-QNT" }
+      ] },
+    { id: "fairway", type: "Fairway wood (5-wood or 7-wood)", ids: ["5W"],
+      role: "Second shots on par 5s and long par 3s. A 7-wood is easier to get up than a 5-wood.",
+      save: [
+        { model: "Ping G425 Max 5-wood", years: "2021", price: "avg ~$221–$228 used", why: "Matches your driver's feel and look.", src: "GCI-425" },
+        { model: "Ping G425 Max 7-wood", years: "2021", price: "one sold $271 (Mar 2026)", why: "More loft, easier launch off the turf.", src: "GCI-DR" }
+      ],
+      value: [
+        { model: "Ping G440 Max 7-wood", years: "2025", price: "one sold $330 (Feb 2026)", why: "Last year's Ping — high launch, very forgiving.", src: "GCI-G" },
+        { model: "Callaway Elyte fairway", years: "2025", price: "check Callaway Pre-Owned", why: "Last year's Callaway, now sold certified pre-owned.", src: "CPO-ELY" }
+      ],
+      nolimit: [
+        { model: "Callaway Quantum Max fairway", years: "2026", price: "from $399.99 new", why: "Newest Callaway; fit the loft to fill the gap under your driver.", src: "CW-QNT" },
+        { model: "Ping G440 Max fairway", years: "2025 (current)", price: "fit at a Ping dealer", why: "Stays in the Ping family with your driver.", src: "GCI-G" }
+      ] },
+    { id: "hybrid", type: "Hybrid (replaces the 4- and 5-iron)", ids: ["HY"],
+      role: "Long shots from the fairway or light rough. Much easier than a long iron.",
+      save: [
+        { model: "Ping G425 hybrid", years: "2021", price: "$129.99–$179.99 used", why: "Same family as your driver; very forgiving.", src: "GG-425" },
+        { model: "Ping G430 hybrid", years: "2023", price: "from ~$154 used, avg ~$240", why: "One step newer, still cheap pre-owned.", src: "2S-PING" }
+      ],
+      value: [
+        { model: "Ping G440 hybrid", years: "2025", price: "used from $160.99 (new $267)", why: "Last year's Ping — high, straight, easy.", src: "2S-PING" },
+        { model: "Callaway Elyte hybrid", years: "2025", price: "$98.51–$182.01 certified pre-owned", why: "Last year's Callaway at a big discount.", src: "CPO-ELY" }
+      ],
+      nolimit: [
+        { model: "Callaway Quantum Max OS hybrid", years: "2026", price: "from $349.99 new", why: "Oversized and draw-biased — reviewers' pick for higher handicaps.", src: "HYB-26" },
+        { model: "TaylorMade Qi4D Max Rescue", years: "2026", price: "check retail", why: "Max-stability rescue, easy launch.", src: "HYB-26" }
+      ] },
+    { id: "irons", type: "Game-improvement cavity-back irons (6-iron to PW)", ids: ["6I", "7I", "8I", "9I", "PW"],
+      role: "Approach shots. Big cavity backs forgive thin and toe hits. Never blades.",
+      save: [
+        { model: "Ping G425 irons", years: "2021", price: "avg $524 used set; ≤ $463 is a great deal", why: "Very forgiving; matches the driver you love.", src: "GCI-425" },
+        { model: "Any big cavity-back set with good grips", years: "2018+", price: "check Play It Again Sports", why: "At 2–3 rounds a year, fresh grips matter more than the year.", src: "GCI-425" }
+      ],
+      value: [
+        { model: "Ping G440 irons", years: "2025", price: "$569.99–$1,309.99 used", why: "Last year's top forgiveness pick in reviews.", src: "GG-425" },
+        { model: "Callaway Elyte / Elyte X irons", years: "2025", price: "check Callaway Pre-Owned", why: "Last year's Callaway; X is the extra-forgiving one.", src: "BR-G440" }
+      ],
+      nolimit: [
+        { model: "Ping G440 irons + Ping color-code fitting", years: "2025 (current)", price: "about $164/club new (~$984 5-PW)", why: "Best mishit performance in 2026 reviews.", src: "BR-G440" },
+        { model: "Callaway Quantum Max OS irons", years: "2026", price: "from $1,149.99 (7 pc)", why: "Newest Callaway, built for higher handicaps.", src: "GM-GI" }
+      ] },
+    { id: "wedges", type: "Wedges (a ~52° and a ~56°)", ids: ["AW", "52", "54", "56", "58", "SW"],
+      role: "Chips, pitches, bunkers. Cavity-back wedges match cavity-back irons.",
+      save: [
+        { model: "Ping Glide 3.0", years: "2019", price: "about $41–$83 used, avg $66", why: "G425-era Ping wedge; cheap and plenty of groove left if you check.", src: "GLIDE" },
+        { model: "Cleveland CBX 2", years: "2019", price: "about $80–$100 used", why: "Cavity-back wedge — forgiving like your irons.", src: "CBX" }
+      ],
+      value: [
+        { model: "Cleveland CBX ZipCore", years: "2021–22", price: "$97.99–$127.99 used", why: "The cavity wedge one generation back.", src: "CBX" },
+        { model: "Titleist Vokey SM10", years: "2024", price: "check 2nd Swing", why: "Last year's Vokey — only if you like a classic look.", src: "WEDGE26" }
+      ],
+      nolimit: [
+        { model: "Cleveland CBZ", years: "2026", price: "check retail", why: "Newest cavity-back wedge; best-for-beginners pick in 2026 lists.", src: "WEDGE26" },
+        { model: "Titleist Vokey SM11 (fitted grind)", years: "2026", price: "check retail", why: "Premium benchmark; get the grind fitted.", src: "WEDGE26" }
+      ] },
+    { id: "putter", type: "Putter (face-balanced mallet if putts start off line)", ids: ["PU"],
+      role: "Every hole. Length and grip matter more than the model.",
+      keep: "Cut it or regrip it first (shop cut about $15–40). Don't buy a putter for length.",
+      save: [
+        { model: "Odyssey White Hot OG #7", years: "2023", price: "$60–$238 used listings", why: "Classic forgiving mallet with a big alignment aid.", src: "PUTT" }
+      ],
+      value: [
+        { model: "Odyssey Ai-ONE #7", years: "2023–24", price: "launched $299.99; check pre-owned", why: "Last generation's Odyssey insert — forgiving on mishits.", src: "PUTT" },
+        { model: "TaylorMade Spider Tour Double Bend", years: "2023", price: "$349.99 new; check pre-owned", why: "Very stable mallet for a straight stroke.", src: "PUTT" }
+      ],
+      nolimit: [
+        { model: "Odyssey Ai-DUAL", years: "2026", price: "check retail", why: "Newest Odyssey; fit length and lie at the shop.", src: "PUTT" },
+        { model: "Scotty Cameron Phantom mallet", years: "2026", price: "check retail", why: "Premium mallet; only worth it with a putter fitting.", src: "PUTT" }
+      ] }
+  ]
+};
+
+const WHATS_NEW = [
+  "Help me with… — pick putting, chipping, at-home, contact, driver or course management. Practice and Learn reshape around it.",
+  "At home — carpet putting, laundry-basket chipping, a mirror setup check and a 10-minute living-room routine. Your rounds pick which one shows first.",
+  "Bag tune-up (in My bag) — measure, take three photos, tap answers, get fixes cheapest-first.",
+  "Budget & goal — rounds per year plus Save / Value / No limit shape every club suggestion.",
+  "Club guide — club type first, then real models and good years for your budget, with a 'last checked' date.",
+  "Cleaner bag screens: duplicate cards and the old price list folded into one guide. Bigger buttons."
+];
+
+.
