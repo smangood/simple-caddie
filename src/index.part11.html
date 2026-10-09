@@ -1,0 +1,305 @@
+      ${f.never ? "" : `<div class="split" style="margin-top:8px"><select id="fr-club">${clubOpts}</select><input id="fr-carry" inputmode="numeric" value="${esc(f.carry || "")}" placeholder="yards"></div>
+        <button class="ghost wide" style="margin-top:8px" data-act="friend-save">Update their bag</button>`}
+      <h3>Their bag <span class="src guess">guess</span></h3>
+      <div class="card"><table class="card-table"><tbody>${bag.map(b => `<tr><td>${esc(b.name)}</td><td class="num">${b.yards}</td></tr>`).join("")}</tbody></table></div>
+      <h3>Pick a club for them</h3>
+      <div class="yardbox">
+        <button class="step" data-act="friend-yd" data-d="-5">−5</button>
+        <input id="fr-yards" inputmode="numeric" value="${esc(fu.yards)}" placeholder="yds">
+        <button class="step" data-act="friend-yd" data-d="5">+5</button>
+      </div>
+      <div class="chips">${chips}<button class="chip" data-act="friend-unknown" aria-pressed="${fu.mode === "unknown"}">Don't know</button></div>
+      <button class="btn wide" style="margin-top:10px" data-act="friend-pick">What should they hit?</button>
+      ${f.pick ? `<div class="reply"><strong>${esc(f.pick.club)}</strong> — ${esc(f.pick.line)}</div>` : ""}
+      <div class="stack" style="margin-top:12px">
+        <button class="btn secondary wide" data-act="friend-share">Share their card</button>
+        <button class="danger wide" data-act="friend-del">Remove ${esc(f.name || "this friend")}</button>
+      </div>`;
+  }
+  return `
+    ${topBar("Help a friend", "home")}
+    <h2>Help a friend.</h2>
+    <p class="muted">For a buddy who plays even less than you. Saved apart from your clubs. Nothing is sent unless you tap Share.</p>
+    <div class="row">${list}<button class="chip" data-act="friend-new">+ New friend</button></div>
+    ${body ? `<div style="margin-top:12px">${body}</div>` : `<p class="small" style="margin-top:12px">Tap “+ New friend” to make a card.</p>`}
+  `;
+}
+
+function overlays() {
+  let html = "";
+  if (ui.oneThing) {
+    html += `<div class="overlay" data-act="one-thing-close"><div class="card" data-stop="1">
+      <div class="kicker">One thing</div>
+      <p class="one-thing">${esc(ui.oneThing)}</p>
+      <div class="split"><button class="ghost" data-act="one-thing">Another</button><button class="btn" data-act="one-thing-close">Got it</button></div>
+    </div></div>`;
+  }
+  if (ui.copyText) {
+    html += `<div class="overlay"><div class="card" data-stop="1">
+      <div class="kicker">Copy this</div>
+      <textarea id="copy-box" style="min-height:220px">${esc(ui.copyText)}</textarea>
+      <button class="btn wide" style="margin-top:8px" data-act="copy-close">Done</button>
+    </div></div>`;
+  }
+  return html;
+}
+
+/* ===================== render + events ===================== */
+
+function speak(text) {
+  if (!window.speechSynthesis) { alert("This phone has no speak-aloud. The line is already on screen."); return; }
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = 0.92; u.lang = "en-US";
+  window.speechSynthesis.speak(u);
+}
+function spoken(r) { return (r.club + ". " + r.tee + ". " + r.sentence).replace(/—/g, ". "); }
+function go(screen) {
+  ui.screen = screen;
+  render();
+  window.scrollTo(0, 0);
+}
+
+const SCREENS = {
+  fresh, intro, home, card, ask, read, round, courses, course, pro, miss, bag, log, trends,
+  tips, drills, checks, chipaid, scorecard, mybag, todaycheck, wear, clubedit, rangenums,
+  learn, how, friend
+};
+function render() {
+  const el = document.getElementById("app");
+  el.innerHTML = (SCREENS[ui.screen] || home)() + overlays();
+}
+
+// Exposed for headless tests only.
+window.SimpleCaddie = { recommend, baseRecommend, load, migrate, save, KEY, FRIEND_KEY, getData: () => data, getUi: () => ui,
+  trustOf, trustedRanking, estimateFrom, applyQuickStart, courseHoles, SCORECARDS, driverBenched, replyFor, proPlan, trendStats,
+  friendBag, friendPick, friendCardText, putterLengthAdvice, APP_VERSION };
+
+function captureAsk() {
+  const y = document.getElementById("yards");
+  if (y) ui.ask.yards = y.value.trim();
+  const course = document.querySelector("[data-field='courseId']");
+  if (course) ui.ask.courseId = course.value;
+  const hole = document.querySelector("[data-field='hole']");
+  if (hole) ui.ask.hole = hole.value;
+  const mc = document.getElementById("must-carry");
+  if (mc) ui.ask.mustCarry = mc.checked;
+  if (ui.ask.yards) ui.ask.mode = ui.ask.mode === "shaky" ? "shaky" : "";
+}
+
+function doRecommend() {
+  captureAsk();
+  if (!ui.ask.mode && !ui.ask.yards && !ui.ask.situation) { alert("Type the yards, or tap Don't know."); return; }
+  if (ui.ask.yards && !/^\d+$/.test(ui.ask.yards)) { alert("Yards as a number, or tap Don't know."); return; }
+  const rec = recommend(ui.ask);
+  ui.read = Object.assign({}, rec, { ask: Object.assign({}, ui.ask), result: "" });
+  ui.reply = null;
+  data.lastRead = ui.read;
+  save();
+  go("read");
+}
+
+function logResult(result) {
+  const r = ui.read || data.lastRead;
+  if (!r) return;
+  if (!data.live || data.live.date !== today()) ensureLive();
+  r.result = result;
+  data.lastRead = r;
+  const c = clubById(r.clubId);
+  if (c) { if (result === "hit") c.hits = (c.hits || 0) + 1; else c.misses = (c.misses || 0) + 1; }
+  data.shots.unshift({ date: today(), ts: Date.now(), club: r.club, clubId: r.clubId, tee: r.tee, sentence: r.sentence, result, ask: r.ask });
+  data.shots = data.shots.slice(0, 1500);
+  save();
+  ui.reply = replyFor(result, r);
+  render();
+}
+
+function saveRound() {
+  const scoreEl = document.getElementById("score");
+  const courseEl = document.getElementById("round-course");
+  const noteEl = document.getElementById("round-note");
+  const course = data.courses.find(c => c.id === (courseEl && courseEl.value));
+  const live = data.live && data.live.date === today() ? data.live : null;
+  const lt = liveTotals();
+  const holes = live ? live.holes.filter(h => h.strokes || h.putts || h.pen) : [];
+  data.rounds.unshift({
+    date: today(), ts: Date.now(),
+    score: scoreEl ? scoreEl.value.trim() : "",
+    courseId: courseEl ? courseEl.value : "", course: course ? course.name : "",
+    tee: course && course.tee || "",
+    sideways: ui.round.sideways.slice(),
+    note: noteEl ? noteEl.value.trim() : "",
+    holes,
+    // only call it a partial round when the score itself came from a part-filled card
+    holesPlayed: live && lt.holes && scoreEl && Number(scoreEl.value) === lt.strokes ? lt.holes : null,
+    putts: live && lt.putts ? lt.putts : null, pens: live ? lt.pens : null
+  });
+  ui.round = { score: "", courseId: "", sideways: [], note: "" };
+  data.live = null;
+  data.phoneDay = null;
+  save();
+  const t = trendStats();
+  ui.flash = "Round logged." + (t.top ? " Most-named problem so far: " + sidewaysLabel(t.top) + ". Your 20-minute home drill is below." : "");
+  go("trends");
+}
+
+function startRange() {
+  ui.rangeStep = 0; ui.rangeYards = ""; ui.repTip = ""; ui.thinRun = 0;
+  ui.rangeClubs = WARMUP.filter(id => { const c = clubById(id); return c && c.inBag; });
+  if (!ui.rangeClubs.length) ui.rangeClubs = data.clubs.filter(c => c.inBag && c.id !== "PU").slice(0, 1).map(c => c.id);
+  ui.rangeCounts = {};
+  ui.rangeClubs.forEach(id => { ui.rangeCounts[id] = { straight: 0, left: 0, right: 0, thin: 0, yards: [] }; });
+  go("pro");
+}
+function logRep(kind) {
+  const id = ui.rangeClubs[ui.rangeStep];
+  const bucket = ui.rangeCounts[id];
+  bucket[kind] += 1;
+  const y = document.getElementById("range-yards");
+  if (y && kind === "straight" && /^\d+$/.test(y.value.trim())) { bucket.yards.push(Number(y.value.trim())); ui.rangeYards = y.value.trim(); }
+  const c = clubById(id);
+  if (kind === "straight") c.straights = (c.straights || 0) + 1;
+  if (kind === "left") c.lefts = (c.lefts || 0) + 1;
+  if (kind === "right") c.rights = (c.rights || 0) + 1;
+  if (kind === "thin") c.thins = (c.thins || 0) + 1;
+  ui.thinRun = kind === "thin" ? ui.thinRun + 1 : 0;
+  ui.repTip = pickOne(REP_TIPS[kind], bucket.straight + bucket.left + bucket.right + bucket.thin);
+  save();
+  render();
+}
+function switchRangeClub(id) {
+  const y = document.getElementById("range-yards");
+  if (y) ui.rangeYards = "";
+  if (!ui.rangeClubs.includes(id)) {
+    ui.rangeClubs.splice(ui.rangeStep + 1, 0, id);
+    ui.rangeCounts[id] = { straight: 0, left: 0, right: 0, thin: 0, yards: [] };
+  }
+  ui.rangeStep = ui.rangeClubs.indexOf(id);
+  ui.repTip = ""; ui.thinRun = 0;
+  render();
+}
+function nextClub() {
+  const id = ui.rangeClubs[ui.rangeStep];
+  const bucket = ui.rangeCounts[id];
+  const y = document.getElementById("range-yards");
+  if (y && /^\d+$/.test(y.value.trim()) && bucket.yards.length === 0 && bucket.straight > 0) bucket.yards.push(Number(y.value.trim()));
+  applyRangeClub(id, bucket);
+  ui.repTip = ""; ui.thinRun = 0;
+  if (ui.rangeStep < ui.rangeClubs.length - 1) { ui.rangeStep += 1; ui.rangeYards = ""; render(); return; }
+  const total = ui.rangeClubs.reduce((n, cid) => { const b = ui.rangeCounts[cid]; return n + b.straight + b.left + b.right + b.thin; }, 0);
+  data.rangeSessions.unshift({ date: today(), total, counts: ui.rangeCounts });
+  fillEstimates();
+  save();
+  const pending = data.clubs.filter(c => c.rangePending).map(c => c.short);
+  ui.rangeCounts = null;
+  ui.flash = "Session logged: " + total + " reps. Range numbers replaced guesses." + (pending.length ? " Your own numbers kept for " + pending.join(", ") + " — tap Range numbers to use the range ones." : "");
+  go("pro");
+}
+
+function finishFresh(skip) {
+  const f = ui.fresh;
+  const d = empty();
+  d.clubs.forEach(c => { c.brand = ""; c.keeper = false; c.searchModel = c.name; });
+  if (!skip) {
+    d.clubs.forEach(c => { c.inBag = c.id === "PU" || f.clubs.includes(c.id); });
+    d.courses = d.courses.filter(c => f.courses.includes(c.id));
+    const nm = (f.newCourse || "").trim();
+    if (nm) d.courses.push({ id: "c" + Date.now(), name: nm, place: "", notes: "", greens: { speed: "medium", firm: "medium", slope: "some", size: "medium" }, holes: Array.from({ length: 18 }, (_, i) => ({ n: i + 1, par: 4, yards: "", notes: "" })), holeEdits: {}, preset: false, source: "hand" });
+  }
+  d.seenIntro = true;
+  d.freshStart = today();
+  data = d;
+  if (!skip && (f.never || Number(f.carry) > 0)) applyQuickStart(f.clubId, f.carry, f.never);
+  save();
+  ui.flash = "You're set. On the course, tap Caddie.";
+  go("home");
+}
+
+function captureFresh() {
+  const f = ui.fresh;
+  const cl = document.getElementById("fresh-club"); if (cl) f.clubId = cl.value;
+  const ca = document.getElementById("fresh-carry"); if (ca) f.carry = ca.value.trim();
+  const nc = document.getElementById("fresh-newcourse"); if (nc) f.newCourse = nc.value;
+}
+
+function captureFriend() {
+  const f = activeFriend();
+  if (!f) return;
+  const n = document.getElementById("fr-name"); if (n) f.name = n.value.trim();
+  const cl = document.getElementById("fr-club"); if (cl) f.clubId = cl.value;
+  const ca = document.getElementById("fr-carry"); if (ca) f.carry = ca.value.trim();
+  const y = document.getElementById("fr-yards"); if (y) ui.friend.yards = y.value.trim();
+  saveFriends();
+}
+
+document.getElementById("app").addEventListener("click", (e) => {
+  const t = e.target.closest("[data-go],[data-act],[data-mode],[data-group],[data-course],[data-bag]");
+  if (!t) return;
+  if (t.dataset.stop && !e.target.closest("[data-act]")) return;
+  if (t.dataset.go) {
+    if (ui.screen === "ask") captureAsk();
+    if (t.dataset.go === "bag" || t.dataset.go === "mybag") ui.bagPanel = "main";
+    if (t.dataset.go === "clubedit" && t.dataset.edit) ui.myBagEditId = t.dataset.edit;
+    if (t.dataset.go === "ask") ui.reply = null;
+    go(t.dataset.go);
+    return;
+  }
+  if (t.dataset.course) {
+    const c = data.courses.find(x => x.id === t.dataset.course);
+    ui.courseEdit = JSON.parse(JSON.stringify(c));
+    if (!ui.courseEdit.greens) ui.courseEdit.greens = { speed: "medium", firm: "medium", slope: "some", size: "medium" };
+    go("course");
+    return;
+  }
+  if (t.dataset.mode) {
+    captureAsk();
+    ui.ask.mode = ui.ask.mode === t.dataset.mode ? "" : t.dataset.mode;
+    if (ui.ask.mode === "unknown") ui.ask.yards = "";
+    render();
+    return;
+  }
+  if (t.dataset.group) { captureAsk(); ui.ask[t.dataset.group] = t.dataset.value; render(); return; }
+  if (t.dataset.bag) { const c = clubById(t.dataset.bag); c.inBag = !c.inBag; save(); render(); return; }
+
+  const act = t.dataset.act;
+  switch (act) {
+    case "seen-intro": data.seenIntro = true; save(); go("home"); break;
+    case "fresh-next": captureFresh(); if (ui.fresh.step === 2 && !ui.fresh.never && ui.fresh.carry && !/^\d+$/.test(ui.fresh.carry)) { alert("Yards as a number."); break; } ui.fresh.step = Math.min(3, ui.fresh.step + 1); go("fresh"); break;
+    case "fresh-back": captureFresh(); ui.fresh.step = Math.max(0, ui.fresh.step - 1); go("fresh"); break;
+    case "fresh-skip": finishFresh(true); break;
+    case "fresh-club": { const f = ui.fresh; const id = t.dataset.id; f.clubs = f.clubs.includes(id) ? f.clubs.filter(x => x !== id) : f.clubs.concat(id); render(); break; }
+    case "fresh-never": captureFresh(); ui.fresh.never = !ui.fresh.never; render(); break;
+    case "fresh-finish": captureFresh(); finishFresh(false); break;
+    case "pocket-hole": bumpPhone(); { const l = ensureLive(); l.hole = Math.min(18, l.hole + 1); save(); } go("card"); break;
+    case "hole-prev": case "hole-next": { const l = ensureLive(); l.hole = clamp(l.hole + (act === "hole-next" ? 1 : -1), 1, 18); save(); render(); break; }
+    case "tee-read": {
+      const course = data.courses.find(c => c.id === data.activeCourseId);
+      const l = ensureLive();
+      const h = courseHoles(course).find(x => x.n === l.hole);
+      ui.ask = Object.assign(ui.ask, { yards: h && h.yards ? String(h.yards) : "", mode: "", lie: "tee", hill: "flat", tilt: "level", courseId: course ? course.id : "", hole: String(l.hole), mustCarry: false, situation: "" });
+      ui.reply = null;
+      go("ask");
+      break;
+    }
+    case "yd": { captureAsk(); const n = (Number(ui.ask.yards) || 0) + Number(t.dataset.d); ui.ask.yards = n > 0 ? String(clamp(n, 5, 350)) : ""; ui.ask.mode = ui.ask.mode === "shaky" ? "shaky" : ""; render(); break; }
+    case "ydset": captureAsk(); ui.ask.yards = String(t.dataset.y); if (ui.ask.mode === "unknown") ui.ask.mode = ""; if (t.dataset.lie) ui.ask.lie = t.dataset.lie; render(); break;
+    case "recommend": doRecommend(); break;
+    case "situ": {
+      captureAsk();
+      ui.ask.situation = t.dataset.situ;
+      if ((t.dataset.situ === "roll" || t.dataset.situ === "loft") && !ui.ask.yards) ui.ask.yards = "20";
+      if (t.dataset.situ === "loft") ui.ask.mustCarry = true;
+      doRecommend();
+      ui.ask.situation = "";
+      break;
+    }
+    case "speak": { const r = ui.read || data.lastRead; if (r) speak(spoken(r)); break; }
+    case "speak-text": speak(t.dataset.text || ""); break;
+    case "result": logResult(t.dataset.result); break;
+    case "next-shot": ui.reply = null; ui.ask.yards = ""; ui.ask.mode = ""; ui.ask.situation = ""; ui.ask.mustCarry = false; if (ui.ask.lie === "tee") ui.ask.lie = "fairway"; go("ask"); break;
+    case "one-thing": { let n; do { n = pickOne(ONE_THINGS); } while (ONE_THINGS.length > 1 && n === ui.oneThing); ui.oneThing = n; render(); break; }
+    case "one-thing-close": if (e.target.closest("[data-stop]") && t.classList.contains("overlay")) break; ui.oneThing = null; render(); break;
+    case "copy-close": ui.copyText = null; render(); break;
+    case "unbench": data.driverUnbench = { date: today(), start: roundStartTs(), base: driverMissesThisRound() }; save(); render(); break;
+    case "save-round": saveRound(); break;
+    case "new-course": {
