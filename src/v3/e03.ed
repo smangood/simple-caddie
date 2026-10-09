@@ -1,0 +1,191 @@
+2813,2814c
+    ${focusLine("learn")}
+    <h2 style="margin-top:12px">Learn.</h2>
+    <div class="tabs">${tabBtn("how", "How to hit it")}${tabBtn("home", "At home")}${tabBtn("simple", "Simplify")}${tabBtn("head", "Head check")}</div>
+.
+2801c
+    body = `<p class="muted">${focusList().some(a => a.id === "course") ? "Course management: these rules are the whole plan." : "For golfers who don't practice. Read anytime."}</p>
+.
+2799c
+    const rank = h => mine.includes(h.id) ? mine.indexOf(h.id) : 99;
+    const list = HOWTO.slice().sort((a, b) => rank(a) - rank(b));
+    body = list.map(h => `<button class="situ" data-act="open-how" data-id="${h.id}" data-back="learn"><strong>${esc(h.title)}${mine.includes(h.id) ? ' <span class="badge ok">your pick</span>' : ""}</strong><span>${esc(h.feel)}</span></button>`).join("");
+  } else if (tab === "home") {
+    const list = orderedHomeDrills();
+    body = `<p class="muted">Living room, hallway, yard. Ordered by your rounds and your picks.</p>${list.map((x, i) => homeDrillCard(x, i === 0)).join("")}`;
+.
+2796a
+  const mine = focusList().map(a => a.how).filter(Boolean);
+.
+2795c
+  const tab = ui.learnTab || learnDefaultTab();
+.
+2793a
+function learnDefaultTab() {
+  const f = focusList()[0];
+  return f ? f.learn : "how";
+}
+.
+2704c
+      <button class="ghost wide" style="margin-top:8px" data-act="open-wear" data-id="${c.id}" data-back="clubedit">Wear checklist</button>
+.
+2681c
+    ${topBar("Club", ui.clubeditBack || "mybag")}
+.
+2573,2576c
+        <button class="ghost" data-go="cheatsheet">Range cheat sheet</button>
+        <button class="ghost" data-act="go-athome" data-back="pro">At home</button>
+.
+2558,2559c
+      ${focusLine("pro")}
+      <h2 style="margin-top:12px">${plan.from ? "Practice from your last round." : "Practice plan."}</h2>
+      <p class="muted">${plan.focus.length ? "Your picks first (" + esc(plan.focus.join(", ")) + ")" + (plan.from ? ", then what went sideways on " + esc(plan.from) + "." : ".") : (plan.from ? "Built from " + esc(plan.from) + " — what went sideways and what you missed." : "Log a round and this plan follows your problems.")} Putting is always in.</p>
+      ${(() => { const h = orderedHomeDrills()[0]; return `<div class="tip home-tip"><strong>No range? At home: ${esc(h.d.title)} · ${h.d.minutes} min</strong>
+        <p class="small" style="margin:4px 0 6px">${esc(h.why || h.d.where)}</p>
+        <button class="btn" style="min-height:48px" data-act="go-athome" data-back="pro">At-home practice</button></div>`; })()}
+      <h3>At the range</h3>
+.
+2556c
+      ${topBar("Practice", "home")}
+.
+2462c
+    <button class="ghost wide" style="margin-top:8px" data-go="pro">Practice plan</button>
+.
+2455a
+    ${(() => { const n = trendNudges()[0]; const d = n && AT_HOME.find(x => x.id === n.id); return d ? `<div class="tip"><strong>At home: ${esc(d.title)}</strong><p class="small" style="margin:4px 0 6px">${esc(n.why)}</p><button class="ghost" data-act="go-athome" data-back="trends">Show me the drill</button></div>` : ""; })()}
+.
+2224d
+2219a
+      <button class="ghost" data-go="bag">My bag · tune-up</button>
+.
+2218a
+    <div style="margin-top:12px">${focusLine("home")}</div>
+.
+2216,2217c
+      <button class="job door" data-go="pro"><strong>Practice</strong><span>Range or living room. Plan built from your rounds.</span></button>
+      <button class="job door" data-go="learn"><strong>Learn</strong><span>How to hit each shot. At-home drills. Simple rules.</span></button>
+.
+2213a
+    ${whatsNewCard()}
+.
+2132c
+    <details><summary>What's new in v3</summary><ul class="plain">${WHATS_NEW.map(w => `<li class="small">${esc(w)}</li>`).join("")}</ul></details>
+    <button class="btn wide" style="margin-top:12px" data-act="seen-intro">Got it</button>
+.
+2127,2128c
+      <p><strong>Practice</strong> — at the range or at home. Straight range shots set your real distances. The plan follows your last round and what you asked for help with.</p>
+      <p><strong>Learn</strong> — how to hit each shot, at-home drills, and short rules that make golf simpler.</p>
+      <p><strong>My bag</strong> — tune-up (measure + photos), keep-or-change cards and a club guide for your budget. Cheapest fix first.</p>
+.
+2084c
+    <button class="ghost wide" data-go="${ui.wearBack || "bag"}">Done</button>
+.
+2078c
+    ${topBar("Wear", ui.wearBack || "bag")}
+.
+1952,2034d
+1948a
+    <button class="ghost wide" data-act="bag-panel" data-panel="guide">Club guide · what to buy</button>
+.
+1947c
+    <p class="muted">Cheapest fix first. Default is keep — change only when wear, miss rate, or range spread earns it. Wear taps live under each club's Edit → Wear checklist.</p>
+.
+1940,1942c
+      ${ex.length ? `<p class="small"><strong>If you do replace it: ${esc(gt.type)}</strong> — e.g. ${ex.map(e => esc(e.model + " (" + e.years + ")")).join(", ")}. See the Club guide.</p>` : ""}
+.
+1938c
+        <p class="small">${esc(v.skip)}</p>
+.
+1932a
+    const gt = guideTypeFor(c);
+    const ex = !v.keep && !/regrip/i.test(v.title) ? guideExamples(gt).slice(0, 2) : [];
+.
+1931c
+    if (!c || (!c.inBag && id !== "DR")) return "";
+.
+1928c
+  const ids = ["DR","5W","HY","7I","PW","AW","52","54","56","58","SW","PU"];
+.
+1899,1922c
+    ${topBar("My bag", "home")}
+    ${flashHtml()}
+    <h2>My bag · tune-up · shopping.</h2>
+    <p class="muted"><strong>Not perfect, just consistent. Cheapest fix first.</strong> Free setup change → regrip → shop adjustment → replace only when your data earns it.</p>
+    ${budgetCard()}
+    <div class="stack" style="margin:12px 0">
+      <button class="btn wide" data-act="bag-panel" data-panel="tuneup">Bag tune-up · measure + 3 photos</button>
+      <button class="ghost wide" data-act="bag-panel" data-panel="decisions">Keep or change? · per club</button>
+      <button class="ghost wide" data-act="bag-panel" data-panel="guide">Club guide · what to buy (${goalOf() ? esc((GOALS.find(g => g[0] === goalOf()) || [])[1]) : "pick a goal"})</button>
+      <button class="ghost wide" data-act="bag-panel" data-panel="putter">Putter fit</button>
+      <button class="ghost wide" data-go="mybag">My distances · chart</button>
+    </div>
+    <h3>Clubs in the bag</h3>
+    <p class="small">Tap In/Out. Edit has the name, model, photo, wear checklist and used-listing links.</p>
+    <div class="card">${rows}</div>
+.
+1877,1895c
+    <div class="clubline">
+      <div><strong>${esc(c.name)}</strong>${c.keeper ? ' <span class="badge ok">keeper</span>' : ""}
+        <div class="tag">${c.brand ? esc(c.brand) + " · " : ""}${c.yards} yds · ${esc(sourceLabel(c))}</div></div>
+      <button class="chip" data-bag="${c.id}" aria-pressed="${c.inBag ? "true" : "false"}">${c.inBag ? "In" : "Out"}</button>
+      <button class="ghost" data-go="clubedit" data-edit="${c.id}">Edit</button>
+.
+1875a
+  // v3: one compact row per club. Yards live in My distances; model/photo in Edit.
+.
+1874c
+  if (ui.bagPanel === "decisions" || ui.bagPanel === "cards" || ui.bagPanel === "wedges") return bagDecisions();
+.
+1869,1872c
+  if (ui.bagPanel === "tuneup" || ui.bagPanel === "photo") return bagTuneup();
+  if (ui.bagPanel === "guide" || ui.bagPanel === "prices") return bagGuide();
+.
+1709c
+  const blocks = ids.slice(0, 4);
+  if (!blocks.includes("putting")) blocks[blocks.length - 1] = "putting"; // focus picks can't push putting out
+  return { from: last ? last.date : "", focus: focusNames, blocks: blocks.map(id => Object.assign({ id }, PRACTICE_BLOCKS[id])) };
+.
+1707c
+  if (ids.length === focusNames.length && !ids.includes("contact")) ids.push("contact", "contact2");
+.
+1699a
+  const focusNames = [];
+  focusList().forEach(a => { if (a.block && PRACTICE_BLOCKS[a.block] && !ids.includes(a.block)) { ids.push(a.block); focusNames.push(a.label.toLowerCase()); } });
+.
+818c
+  howId: "chip", learnTab: null, flash: "", quick: { clubId: "7I", carry: "" },
+.
+790c
+  // v3 fields (absent in v1/v2 data -> defaults)
+  base.focus = Array.isArray(parsed.focus) ? parsed.focus.filter(f => FOCUS_AREAS.some(a => a.id === f)) : [];
+  base.budget = Object.assign({}, base.budget, parsed.budget || {});
+  const tu = parsed.tuneup || {};
+  base.tuneup = Object.assign({}, base.tuneup, tu, { answers: Object.assign({}, tu.answers || {}), photos: Object.assign({}, tu.photos || {}) });
+  base.whatsNewSeen = parsed.whatsNewSeen || "";
+  base.homeDrillLog = Array.isArray(parsed.homeDrillLog) ? parsed.homeDrillLog : [];
+  // Never drop anything we don't recognise (fields from other builds, freshStart, etc.).
+  Object.keys(parsed).forEach(k => { if (!(k in base)) base[k] = parsed[k]; });
+  base.v = 3;
+.
+749c
+    if (!(parsed.v >= 2) && c.keeper == null) c.keeper = c.id === "DR";
+.
+725a
+    } else if (parsed.v === 2) {
+      // v2 -> v3: keep an untouched copy of the v2 data, once.
+      try { if (!localStorage.getItem(V2_BACKUP_KEY)) localStorage.setItem(V2_BACKUP_KEY, raw); } catch (e) { /* storage full: skip copy */ }
+.
+724c
+    if (!(parsed.v >= 2)) {
+.
+699c
+    seenIntro: false,
+    // v3
+    focus: [], budget: { rounds: "", goal: "" },
+    tuneup: { wristFloorIn: "", glove: "", handIn: "", len7: "", lenDR: "", answers: {}, photos: {} },
+    whatsNewSeen: "", homeDrillLog: []
+.
+672c
+const APP_VERSION = "3.0 · 2026-10-09";
+const V2_BACKUP_KEY = "simple-caddie-v2-before-v3";
+.
