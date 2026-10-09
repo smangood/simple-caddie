@@ -1,0 +1,263 @@
+    <button class="situ" data-act="situ" data-situ="bunker"><strong>Bunker</strong><span>Sand first, get it out.</span></button>
+    <button class="situ" data-act="situ" data-situ="deeprough"><strong>Deep rough</strong><span>Advance it. No hero.</span></button>
+    <button class="situ" data-act="situ" data-situ="above"><strong>Ball above feet</strong><span>Choke down, aim a touch right.</span></button>
+    <button class="situ" data-act="situ" data-situ="below"><strong>Ball below feet</strong><span>Stay down, one more club.</span></button>
+    <button class="situ" data-act="situ" data-situ="bincline"><strong>Big hill</strong><span>Match the slope. Easy swing.</span></button>
+    <label class="field">Course</label>
+    <select data-field="courseId">${courseOpts}</select>
+    ${holeBits}
+  `;
+}
+
+function read() {
+  const r = ui.read || data.lastRead;
+  if (!r) return card();
+  const guess = (r.note || "").indexOf("guess") >= 0;
+  const how = r.how ? HOWTO.find(h => h.id === r.how) : null;
+  const rep = ui.reply;
+  return `
+    ${topBar("Read", "ask")}
+    <div class="kicker">One club ${guess ? '<span class="badge">guess</span>' : '<span class="badge ok">set</span>'}</div>
+    <div class="club-hero">${esc(r.club)}</div>
+    <div class="tee-hero">${esc(r.tee)}</div>
+    <p class="sentence">${esc(r.sentence)}</p>
+    ${r.trustLine ? `<p class="small"><strong>${esc(r.trustLine)}</strong></p>` : ""}
+    <p class="small">${esc(r.note || "")}</p>
+    ${r.diagram ? `<div class="svg-wrap">${chipSvg(r.diagram)}</div>` : ""}
+    <div class="stack no-print">
+      ${rep ? `<div class="reply ${rep.cls}">${esc(rep.text)}</div>
+        <button class="btn wide" data-act="next-shot">Next shot</button>
+        <button class="ghost wide" data-go="card">Back to the card</button>`
+      : `<div class="split">
+          <button class="hit" data-act="result" data-result="hit">Hit it</button>
+          <button class="miss" data-act="result" data-result="missed">Missed</button>
+        </div>`}
+      ${how ? `<button class="ghost wide" data-act="open-how" data-id="${how.id}" data-back="read">How to hit it: ${esc(how.title)}</button>` : ""}
+      <div class="split">
+        <button class="ghost" data-act="speak">Read it to me</button>
+        <button class="ghost" data-act="one-thing">One thing</button>
+      </div>
+      ${rep ? "" : `<div class="split"><button class="ghost" data-go="ask">Change the shot</button><button class="ghost" data-go="card">Back to the card</button></div>`}
+    </div>
+  `;
+}
+
+function scorecard() {
+  const live = ensureLive();
+  if (!live.courseId && data.activeCourseId) live.courseId = data.activeCourseId;
+  const course = data.courses.find(c => c.id === live.courseId);
+  const holes = courseHoles(course);
+  const t = liveTotals();
+  const courseOpts = [`<option value="">No course</option>`].concat(data.courses.map(c =>
+    `<option value="${esc(c.id)}" ${live.courseId === c.id ? "selected" : ""}>${esc(c.name)}</option>`)).join("");
+  const rows = live.holes.map(h => {
+    const hp = holes.find(x => x.n === h.n) || {};
+    return `<div class="sc-row">
+      <strong>${h.n}</strong>
+      <span class="small">${hp.par ? "P" + hp.par : ""}</span>
+      <input inputmode="numeric" data-sc="${h.n}" data-scf="strokes" value="${esc(h.strokes)}" placeholder="score" aria-label="Score hole ${h.n}">
+      <input inputmode="numeric" data-sc="${h.n}" data-scf="putts" value="${esc(h.putts)}" placeholder="putts" aria-label="Putts hole ${h.n}">
+      <label class="pen"><input type="checkbox" data-sc="${h.n}" data-scf="pen" ${h.pen ? "checked" : ""}> pen</label>
+    </div>`;
+  }).join("");
+  return `
+    ${topBar("Scorecard", "card")}
+    <h2>Optional scorecard.</h2>
+    <p class="muted">Score and putts if you want them. "pen" = a penalty or lost ball. Saved as you type. Not a handicap.</p>
+    <label class="field">Course</label>
+    <select id="live-course">${courseOpts}</select>
+    <div class="card" style="margin-top:10px">
+      <p style="margin:0"><strong>${t.strokes || "—"}</strong> strokes through ${t.holes} · ${t.putts || "—"} putts · ${t.pens} pen${t.holes && course ? " · " + (t.toPar >= 0 ? "+" : "") + t.toPar + " to par" : ""}</p>
+    </div>
+    <div class="sc-row sc-head" style="margin-top:10px"><span>#</span><span>par</span><span>score</span><span>putts</span><span></span></div>
+    ${rows}
+    <button class="btn wide" style="margin-top:12px" data-go="card">Back to the card</button>
+    <button class="ghost wide" style="margin-top:8px" data-go="round">End the round</button>
+  `;
+}
+
+function round() {
+  const live = data.live && data.live.date === today() ? data.live : null;
+  const t = liveTotals();
+  const r = ui.round;
+  if (!r.courseId) r.courseId = (live && live.courseId) || data.activeCourseId || "";
+  if (!r.score && live && t.holes) r.score = String(t.strokes);
+  const courseOpts = [`<option value="">Course</option>`].concat(data.courses.map(c =>
+    `<option value="${esc(c.id)}" ${r.courseId === c.id ? "selected" : ""}>${esc(c.name)}</option>`)).join("");
+  const checks = SIDEWAYS_V2.map(([id, label]) => `
+    <label class="check"><input type="checkbox" data-side="${id}" ${r.sideways.includes(id) ? "checked" : ""}> ${label}</label>`).join("");
+  return `
+    ${topBar("End the round", "card")}
+    <h2>How'd it go?</h2>
+    <p class="muted">Score and what went sideways. That's what Trends and the Pro use.</p>
+    <label class="field">Score${live && t.holes ? " (from your scorecard: " + t.holes + " holes)" : ""}</label>
+    <input id="score" inputmode="numeric" value="${esc(r.score)}" placeholder="Strokes">
+    <label class="field">Course</label>
+    <select id="round-course">${courseOpts}</select>
+    <label class="field">What went sideways? (tap any)</label>
+    <div class="card">${checks}</div>
+    <label class="field">Note, if you want one</label>
+    <textarea id="round-note" placeholder="Optional">${esc(r.note)}</textarea>
+    <button class="btn wide" style="margin-top:12px" data-act="save-round">Log the round</button>
+  `;
+}
+
+function trends() {
+  const t = trendStats();
+  const drill = t.top && HOME_DRILLS[t.top];
+  const rank = trustedRanking();
+  const rankHtml = rank.length ? rank.slice(0, 8).map(x => `
+    <div class="trust-row"><strong>${esc(x.c.short)}</strong>
+      <div class="chart-bar-wrap"><div class="chart-bar" style="width:${Math.round(x.t.score * 100)}%"></div></div>
+      <span class="small">${Math.round(x.t.score * 100)}% · ${x.t.n}</span></div>`).join("")
+    : `<p class="small">Tap Hit it / Missed on the course and Straight on the range. Your most-trusted clubs show up here and the caddie leans on them.</p>`;
+  const shots = data.shots.slice(0, 15).map(s => `<p class="small">${esc(s.date)} · ${esc(s.club)} · ${esc(s.result || "no tap")}</p>`).join("");
+  const rounds = data.rounds.slice(0, 10).map(r => `<p class="small">${esc(r.date)} · ${esc(r.score || "—")} · ${esc((r.sideways || []).map(sidewaysLabel).join(", ") || "clean enough")}${r.course ? " · " + esc(shortCourseName({ name: r.course })) : ""}</p>`).join("");
+  return `
+    ${topBar("Trends", "home")}
+    ${flashHtml()}
+    <h2>Your trends.</h2>
+    <div class="card">
+      <p><strong>Average score:</strong> ${t.avg != null ? t.avg : "—"}${t.avg5 != null && t.rounds > 5 ? " · last 5: " + t.avg5 : ""}${t.best != null ? " · best: " + t.best : ""}</p>
+      <p><strong>Average putts:</strong> ${t.putts != null ? t.putts : "—"}</p>
+      <p style="margin:0"><strong>Most-named problem:</strong> ${t.top ? esc(sidewaysLabel(t.top)) + " (" + t.topCount + "×)" : "— log a round"}</p>
+    </div>
+    ${drill ? `<div class="tip"><strong>20 minutes at home: ${esc(drill.title)}</strong>
+      <ul class="plain">${drill.steps.map(s => `<li class="small">${esc(s)}</li>`).join("")}</ul>
+      <button class="ghost" style="margin-top:8px" data-act="speak-text" data-text="${esc(drill.title + ". " + drill.steps.join(" "))}">Read it to me</button></div>` : ""}
+    <h3>Clubs you trust</h3>
+    <div class="card">${rankHtml}</div>
+    ${t.worstClub ? `<p class="small">Most missed on the course lately: ${esc(t.worstClub)} (${t.worstCount}×).</p>` : ""}
+    <button class="ghost wide" style="margin-top:8px" data-go="pro">Practice plan (Range + Pro)</button>
+    <details><summary>What you've tapped</summary>
+      <div class="kicker" style="margin-top:8px">Rounds</div>${rounds || `<p class="small">None yet.</p>`}
+      <div class="kicker" style="margin-top:8px">Course shots</div>${shots || `<p class="small">None yet.</p>`}
+      <div class="kicker" style="margin-top:8px">Range</div>${data.rangeSessions.slice(0, 5).map(s => `<p class="small">${esc(s.date)} · ${s.total} reps</p>`).join("") || `<p class="small">None yet.</p>`}
+    </details>
+  `;
+}
+function log() { return trends(); }
+
+function courses() {
+  const list = data.courses.map(c => {
+    const active = data.activeCourseId === c.id;
+    const sc = SCORECARDS[c.id];
+    const tot = courseTotal(c);
+    return `<div class="card" style="margin-bottom:8px">
+      <strong>${esc(c.name)}</strong>
+      <div class="tag">${esc(c.place || "")}${active ? " · TODAY" : ""}</div>
+      <p class="small">${sc ? esc(c.tee) + " tees · " + tot + " yds · par " + courseHoles(c).reduce((a, h) => a + (Number(h.par) || 0), 0) : (courseHoles(c).length ? tot + " yds (your card)" : "No scorecard yet")}</p>
+      <div class="row">
+        <button class="chip" data-act="set-active" data-id="${esc(c.id)}" aria-pressed="${active}">${active ? "Playing today" : "Play today"}</button>
+        <button class="ghost" data-course="${esc(c.id)}">Tees & holes</button>
+      </div>
+    </div>`;
+  }).join("");
+  return `
+    ${topBar("Courses", "home")}
+    <h2>The ones you play.</h2>
+    <p class="muted">Real hole yardages from each course's public scorecard. Set to White tees until you pick yours.</p>
+    <div class="stack">${list}</div>
+    <button class="btn wide" style="margin-top:12px" data-act="new-course">Add a course</button>
+  `;
+}
+
+function course() {
+  const c = ui.courseEdit;
+  if (!c) return courses();
+  const g = c.greens || { speed: "medium", firm: "medium", slope: "some", size: "medium" };
+  const tap = (group, value, label) =>
+    `<button class="chip" data-act="green-tap" data-gg="${group}" data-gv="${value}" aria-pressed="${g[group] === value}">${label}</button>`;
+  const sc = SCORECARDS[c.id];
+  const holes = courseHoles(c);
+  let teeBits = "";
+  if (sc) {
+    const teeChips = Object.keys(sc.tees).map(t => `<button class="chip" data-act="tee-pick" data-tee="${esc(t)}" aria-pressed="${c.tee === t}">${esc(t)}<br><span class="small">${sc.tees[t].total}</span></button>`).join("");
+    const tn = sc.tees[c.tee] && sc.tees[c.tee].note;
+    teeBits = `<h3>Which tees?</h3><div class="tee-row">${teeChips}</div>
+      <p class="small">Source: ${esc(sc.src)}.${tn ? " " + esc(tn) : ""}</p>`;
+  }
+  const rows = holes.length ? holes.map(h => `
+    <div class="hole">
+      <strong>${h.n}</strong>
+      ${sc ? `<span class="small">Par ${h.par}</span>` : `<select data-hpar="${h.n}">${[3,4,5].map(p => `<option ${Number(h.par) === p ? "selected" : ""}>${p}</option>`).join("")}</select>`}
+      <input inputmode="numeric" data-hyards="${h.n}" value="${esc(h.yards)}" placeholder="${h.card ? esc(h.card) : "yards"}">
+    </div>
+    <input data-hnotes="${h.n}" value="${esc(h.notes || "")}" placeholder="Note (water left, blind tee...)" style="margin-bottom:8px">`).join("")
+    : `<p class="small">No hole card yet. <button class="ghost" data-act="add-18">Add 18 blank holes</button></p>`;
+  return `
+    ${topBar("Course", "courses")}
+    <label class="field">Name</label>
+    <input id="course-name" value="${esc(c.name)}">
+    <label class="field">Place</label>
+    <input id="course-place" value="${esc(c.place || "")}">
+    ${teeBits}
+    <h3>Holes</h3>
+    <p class="small">${sc ? "Yards come from the card. Type over one if the tee sign says different — it's kept as yours." : "Fill in from the scorecard or tee signs."}</p>
+    ${rows}
+    <h3>Greens</h3>
+    <label class="field">Speed</label>
+    <div class="row">${tap("speed","slow","Slow")}${tap("speed","medium","Medium")}${tap("speed","fast","Fast")}</div>
+    <label class="field">Firmness</label>
+    <div class="row">${tap("firm","soft","Soft")}${tap("firm","medium","Medium")}${tap("firm","firm","Firm")}</div>
+    <label class="field">Slope</label>
+    <div class="row">${tap("slope","flat","Flat")}${tap("slope","some","Some")}${tap("slope","lots","Lots of break")}</div>
+    <label class="field">Size</label>
+    <div class="row">${tap("size","small","Small")}${tap("size","medium","Medium")}${tap("size","big","Big")}</div>
+    <label class="field">Notes</label>
+    <textarea id="course-notes">${esc(c.notes || "")}</textarea>
+    <div class="stack" style="margin-top:12px">
+      <button class="btn wide" data-act="save-course">Save course</button>
+      ${sc ? "" : `<button class="danger wide" data-act="delete-course">Remove course</button>`}
+    </div>
+  `;
+}
+
+function pro() {
+  if (!ui.rangeCounts) {
+    const plan = proPlan();
+    const last = data.rangeSessions[0];
+    const blocks = plan.blocks.map(b => `<div class="tip"><strong>${esc(b.title)}</strong>
+      <p class="small" style="margin:4px 0 6px">${esc(b.text)}</p>
+      <button class="ghost" style="min-height:44px" data-act="open-how" data-id="${b.how}" data-back="pro">How to hit it</button></div>`).join("");
+    const notes = (data.notes || []).slice(0, 3).map(n => `<p class="small">${esc(n.date)} · ${esc(n.text)}</p>`).join("");
+    return `
+      ${topBar("Range + Pro", "home")}
+      ${flashHtml()}
+      <h2>${plan.from ? "Practice from your last round." : "Practice plan."}</h2>
+      <p class="muted">${plan.from ? "Built from " + esc(plan.from) + " — what went sideways and what you missed. Putting is always in." : "Log a round and this plan follows your problems. Putting is always in."}</p>
+      ${blocks}
+      <div class="stack" style="margin-top:12px">
+        <button class="btn wide" data-act="start-range">Start a range session</button>
+        <button class="ghost wide" data-go="rangenums">Range numbers · any club</button>
+      </div>
+      <p class="small" style="margin-top:8px">Warmup order: wedge, 8-iron, hybrid, driver last. Straight shots set the distances the caddie uses.</p>
+      <h3>Session notes</h3>
+      <textarea id="pro-note" placeholder="What clicked? What to try next time?"></textarea>
+      <button class="ghost wide" style="margin-top:8px" data-act="save-note">Save note</button>
+      <div class="note-list">${notes}</div>
+      <h3>More</h3>
+      <div class="secondary" style="margin-top:0">
+        <button class="ghost" data-go="miss">Miss cues</button>
+        <button class="ghost" data-go="drills">Range drills</button>
+        <button class="ghost" data-go="checks">What to look for</button>
+        <button class="ghost" data-go="tips">Swing tips</button>
+        <button class="ghost" data-act="go-putter">Putter fit</button>
+        <button class="ghost" data-go="learn">How to hit it</button>
+      </div>
+      ${last ? `<p class="small" style="margin-top:12px">Last session ${esc(last.date)} · ${last.total} reps.</p>` : ""}
+    `;
+  }
+  const id = ui.rangeClubs[ui.rangeStep];
+  const c = clubById(id);
+  const counts = ui.rangeCounts[id];
+  const pct = Math.round((ui.rangeStep / ui.rangeClubs.length) * 100);
+  const switchOpts = data.clubs.filter(x => x.inBag && x.id !== "PU").map(x => `<option value="${x.id}" ${x.id === id ? "selected" : ""}>${esc(x.name)}</option>`).join("");
+  const thin3 = ui.thinRun >= 3;
+  return `
+    ${topBar("Range", "pro")}
+    <div class="kicker">Club ${ui.rangeStep + 1} of ${ui.rangeClubs.length}</div>
+    <h2>${esc(c.name)} ${srcBadge(c)}</h2>
+    <div class="progress"><span style="width:${pct}%"></span></div>
+    <div class="row">
+      <div class="card" style="flex:1"><div class="small">Straight</div><div class="count">${counts.straight}</div></div>
