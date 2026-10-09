@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Simple Caddie">
+<meta name="theme-color" content="#1b4332">
+<meta name="description" content="Simple Caddie: one club, one sentence. Private, offline golf helper.">
+<title>Simple Caddie</title>
+<!-- Simple Caddie v2 (2026-10-09). One offline file: no network requests, no
+     accounts. Data stays in this browser's localStorage. YouTube links are
+     plain tap-to-open links. Sources for scorecards, distance guesses and
+     instruction are cited in comments next to the data below. -->
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #efe6d4;
+    --paper: #f7f1e4;
+    --ink: #1c1915;
+    --muted: #5e564c;
+    --line: #d9cfbe;
+    --green: #1b4332;
+    --green-2: #2d6a4f;
+    --rust: #8a3b2e;
+    --amber: #8a5a12;
+    --chip: #e7dcc8;
+    --shadow: 0 1px 0 rgba(28, 25, 21, 0.04);
+    --safe-t: env(safe-area-inset-top);
+    --safe-b: env(safe-area-inset-bottom);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Avenir Next", "Segoe UI", system-ui, sans-serif;
+    font-size: 18px;
+    line-height: 1.35;
+    min-height: 100dvh;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  #app {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: calc(14px + var(--safe-t)) 16px calc(28px + var(--safe-b));
+  }
+  h1 { font-size: 34px; line-height: 1; margin: 0 0 6px; letter-spacing: -0.03em; font-weight: 650; }
+  h2 { font-size: 22px; margin: 0 0 8px; letter-spacing: -0.02em; font-weight: 650; }
+  h3 { font-size: 17px; margin: 14px 0 8px; font-weight: 650; }
+  p { margin: 0 0 12px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 15px; color: var(--muted); }
+  .kicker {
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--green);
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .stack { display: flex; flex-direction: column; gap: 10px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 16px;
+    box-shadow: var(--shadow);
+  }
+  .job {
+    display: block; width: 100%; text-align: left;
+    background: var(--paper); border: 1px solid var(--line);
+    border-radius: 18px; padding: 18px 16px; box-shadow: var(--shadow);
+  }
+  .job strong { display: block; font-size: 28px; letter-spacing: -0.03em; }
+  .job span { display: block; color: var(--muted); margin-top: 4px; }
+  .btn, .ghost, .danger {
+    border-radius: 14px; min-height: 56px; padding: 12px 14px;
+    border: 1px solid var(--line); background: var(--paper); text-align: center;
+  }
+  .btn { background: var(--green); color: #f7f1e4; border-color: var(--green); font-weight: 650; }
+  .btn.secondary { background: var(--ink); border-color: var(--ink); }
+  .ghost { background: var(--paper); }
+  .danger { background: var(--rust); color: #f7f1e4; border-color: var(--rust); font-weight: 650; }
+  .wide { width: 100%; }
+  .chip {
+    border: 1px solid var(--line); background: var(--chip);
+    border-radius: 999px; min-height: 48px; padding: 10px 14px; flex: 1 1 auto;
+  }
+  .chip[aria-pressed="true"], .choice[aria-pressed="true"] {
+    background: var(--green); color: #f7f1e4; border-color: var(--green);
+  }
+  .choice {
+    flex: 1 1 calc(50% - 8px); min-height: 52px; border-radius: 14px;
+    border: 1px solid var(--line); background: var(--paper); padding: 10px;
+  }
+  label.field { display: block; font-size: 15px; color: var(--muted); margin: 12px 0 6px; }
+  input[type="text"], input[type="number"], textarea, select {
+    width: 100%; background: #fffdf8; border: 1px solid var(--line);
+    border-radius: 12px; padding: 12px 14px; font-size: 18px; min-height: 52px;
+  }
+  textarea { min-height: 72px; resize: vertical; }
+  .club-hero { font-size: 56px; line-height: 0.95; letter-spacing: -0.04em; margin: 4px 0 8px; font-weight: 700; }
+  .tee-hero { font-size: 28px; margin: 0 0 12px; font-weight: 650; }
+  .sentence { font-size: 22px; line-height: 1.35; margin: 0 0 16px; }
+  table.card-table { width: 100%; border-collapse: collapse; }
+  table.card-table th, table.card-table td { text-align: left; padding: 9px 0; border-bottom: 1px solid var(--line); }
+  table.card-table td.num, table.card-table th.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 22px; }
+  table.card-table tr:last-child td { border-bottom: 0; }
+  .tag { font-size: 12px; color: var(--muted); font-weight: 500; }
+  .badge {
+    display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase; padding: 4px 8px; border-radius: 999px;
+    background: var(--chip); color: var(--amber); border: 1px solid var(--line);
+  }
+  .badge.ok { color: var(--green); }
+  .top {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; margin-bottom: 14px;
+  }
+  .back {
+    border: 0; background: transparent; color: var(--green);
+    padding: 8px 0; min-height: 44px; font-weight: 650;
+  }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .hole {
+    display: grid; grid-template-columns: 28px 72px 1fr; gap: 6px;
+    align-items: center; margin-bottom: 6px;
+  }
+  .hole input, .hole select { min-height: 44px; padding: 8px; }
+  .warn { color: var(--amber); }
+  .hit { background: var(--green); color: #f7f1e4; border-color: var(--green); border-radius: 14px; min-height: 56px; border: 1px solid; }
+  .miss { background: var(--rust); color: #f7f1e4; border-color: var(--rust); border-radius: 14px; min-height: 56px; border: 1px solid; }
+  .progress { height: 8px; background: var(--chip); border-radius: 99px; overflow: hidden; margin: 8px 0 14px; }
+  .progress span { display: block; height: 100%; background: var(--green); }
+  ul.plain { margin: 0; padding-left: 18px; }
+  ul.plain li { margin: 6px 0; }
+  .check {
+    display: flex; gap: 10px; align-items: center; min-height: 48px;
+    padding: 8px 0; border-bottom: 1px solid var(--line);
+  }
+  .check input { width: 22px; height: 22px; }
+  details { margin-top: 18px; }
+  summary { min-height: 44px; color: var(--muted); }
+  .count { font-variant-numeric: tabular-nums; font-size: 28px; font-weight: 700; }
+  .svg-wrap { background: #fffdf8; border: 1px solid var(--line); border-radius: 14px; padding: 8px; margin: 10px 0; overflow: hidden; }
+  .svg-wrap svg { width: 100%; height: auto; display: block; }
+  .price { font-variant-numeric: tabular-nums; font-weight: 650; }
+  .tip { border-left: 4px solid var(--green); padding: 10px 12px; margin: 8px 0; background: #fffdf8; border-radius: 0 12px 12px 0; }
+  .situ {
+    display: block; width: 100%; text-align: left; min-height: 52px;
+    border-radius: 14px; border: 1px solid var(--line); background: var(--paper);
+    padding: 12px 14px; margin-bottom: 8px;
+  }
+  .situ strong { display: block; }
+  .situ span { display: block; color: var(--muted); font-size: 14px; margin-top: 2px; }
+
+  .banner {
+    background: var(--green); color: #f7f1e4; border-radius: 14px;
+    padding: 12px 14px; margin-bottom: 12px; font-weight: 650; font-size: 15px;
+  }
+  .banner.guess { background: var(--amber); color: #fffdf8; }
+  .chart { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+  .chart-row { display: grid; grid-template-columns: 72px 1fr 48px; gap: 8px; align-items: center; }
+  .chart-bar-wrap { background: var(--chip); border-radius: 8px; height: 28px; overflow: hidden; }
+  .chart-bar { height: 100%; background: var(--green); border-radius: 8px; min-width: 2px; }
+  .chart-bar.guess-bar { background: #b0893a; }
+  .verdict { border-left: 4px solid var(--green); padding: 10px 12px; background: #fffdf8; border-radius: 0 12px 12px 0; margin: 8px 0; }
+  .verdict.change { border-left-color: var(--rust); }
+  .thumb { width: 100%; max-height: 160px; object-fit: cover; border-radius: 12px; border: 1px solid var(--line); margin: 8px 0; background: #fffdf8; }
+  .thumb-sm { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); }
+  .wear-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+
+  @media print {
+    .no-print { display: none !important; }
+    body { background: white; }
+    #app { max-width: none; }
+  }
+  /* v2 additions */
+  .door { min-height: 112px; }
+  .door strong { font-size: 32px; }
+  .door .em { float: right; font-size: 30px; line-height: 1; }
+  .yardbox { display: grid; grid-template-columns: 72px 1fr 72px; gap: 8px; align-items: center; }
+  .step { min-height: 64px; border-radius: 16px; border: 1px solid var(--line); background: var(--paper); font-size: 24px; font-weight: 700; }
+  .yardbox input { text-align: center; font-size: 40px; font-weight: 700; min-height: 64px; letter-spacing: -0.02em; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chips .chip { flex: 1 1 calc(25% - 6px); min-width: 64px; padding: 10px 6px; }
+  .reply { background: #fffdf8; border: 2px solid var(--green); border-radius: 16px; padding: 14px 16px; font-size: 21px; line-height: 1.35; margin: 8px 0 12px; }
+  .reply.missed { border-color: var(--rust); }
+  .reply.warnline { border-color: var(--amber); }
+  .overlay { position: fixed; inset: 0; background: rgba(28,25,21,0.55); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 50; }
+  .overlay .card { max-width: 440px; width: 100%; }
+  .one-thing { font-size: 26px; line-height: 1.3; font-weight: 650; margin: 6px 0 16px; }
+  .src { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); }
+  .src.guess { color: var(--amber); background: #f5ead2; }
+  .src.mine { color: #1f3a5f; background: #e3eaf3; }
+  .src.range { color: var(--green); background: #dfeee4; }
+  .club-row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .club-row:last-child { border-bottom: 0; }
+  .club-row .yd { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 48px; text-align: right; }
+  .trust-row { display: grid; grid-template-columns: 90px 1fr 64px; gap: 8px; align-items: center; margin: 6px 0; }
+  .how { border-left: 4px solid var(--green); }
+  .how dl { margin: 8px 0 0; }
+  .how dt { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--green); font-weight: 700; margin-top: 8px; }
+  .how dd { margin: 2px 0 0; }
+  .rule { padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .rule:last-child { border-bottom: 0; }
+  .rule strong { display: block; font-size: 19px; }
+  .rule span { display: block; color: var(--muted); font-size: 15px; margin-top: 2px; }
+  .linkbtn { display: flex; align-items: center; justify-content: center; text-decoration: none; text-align: center; min-height: 56px; padding: 10px 14px; color: var(--green, #1b4332); font-weight: 600; box-sizing: border-box; }
+  .sc-row { display: grid; grid-template-columns: 34px 44px 1fr 1fr 64px; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .sc-row input { min-height: 46px; padding: 6px 8px; text-align: center; }
+  .sc-row .pen { display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 13px; color: var(--muted); }
+  .sc-head { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .holebar { display: grid; grid-template-columns: 56px 1fr 56px; gap: 8px; align-items: center; }
+  .holebar .mid { text-align: center; }
+  .holebar .mid strong { display: block; font-size: 22px; }
+  .tee-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tee-row .chip { flex: 1 1 calc(33% - 6px); }
+  .wizard-dots { display: flex; gap: 6px; margin: 4px 0 12px; }
+  .wizard-dots span { height: 6px; flex: 1; border-radius: 99px; background: var(--chip); }
+  .wizard-dots span.on { background: var(--green); }
+  .secondary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+  .secondary .ghost { min-height: 52px; font-size: 16px; }
+  .note-list p { margin: 4px 0; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+"use strict";
+const KEY = "simple-caddie-v1";
+
+/* Easy to edit. Offline — no live lookup. Filled from public course pages + Jeff can tweak. */
+const COURSE_PRESETS = [
+  {
+    id: "gailes",
+    name: "Lakewood Shores — The Gailes",
+    place: "Oscoda, MI",
+    notes: "Links-style. Large double greens, pot bunkers, fescue, wind off Lake Huron. Firm when dry.",
+    greens: { speed: "medium", firm: "firm", slope: "some", size: "big" },
+    source: "lakewoodshores.com/gailes"
+  },
+  {
+    id: "blackshire",
+    name: "Lakewood Shores — Blackshire",
+    place: "Oscoda, MI",
+    notes: "Pine Valley feel. Hardwoods, sand waste, undulating greens. Walking-friendly green-to-tee.",
+    greens: { speed: "medium", firm: "firm", slope: "lots", size: "medium" },
+    source: "lakewoodshores.com/blackshire"
+  },
+  {
+    id: "serradella",
+    name: "Lakewood Shores — The Serradella",
+    place: "Oscoda, MI",
+    notes: "Parkland resort course. Wide fairways, large greens, minimal hazards, wetlands and flowers.",
+    greens: { speed: "medium", firm: "soft", slope: "some", size: "big" },
+    source: "lakewoodshores.com/serradella"
+  },
+  {
+    id: "weelinks",
+    name: "Lakewood Shores — Wee Links",
+    place: "Oscoda, MI",
+    notes: "18-hole pitch-and-putt, par 54, ~1014 yd. Small greens, bunkers, short game practice. Free for resort guests.",
+    greens: { speed: "medium", firm: "soft", slope: "some", size: "small" },
+    source: "lakewoodshores.com/weelinks; GolfLink scorecard"
+  },
+  {
+    id: "redhawk",
+    name: "Red Hawk Golf Club",
+    place: "East Tawas, MI",
+    notes: "Arthur Hills. Bentgrass greens/fairways, rolling elevation (~120 ft), cart mandatory. Strategic bunkers.",
+    greens: { speed: "medium", firm: "medium", slope: "lots", size: "medium" },
+    source: "redhawkgolf.net; teeoff.com; cwgolfarch.com"
+  },
+  {
+    id: "sanctuary",
+    name: "Sanctuary Lake",
+    place: "Troy, MI",
+    notes: "Links-style muni. Small undulating bentgrass greens, ~80 bunkers, rolling. Par 71.",
+    greens: { speed: "medium", firm: "firm", slope: "lots", size: "small" },
+    source: "golftroy.com/sanctuary-lake"
+  },
+  {
+    id: "sylvanglen",
+    name: "Sylvan Glen",
+    place: "Troy, MI",
+    notes: "Traditional tree-lined muni (1922). Flat mostly, water/creek carries, parkland. Par 71.",
+    greens: { speed: "medium", firm: "soft", slope: "flat", size: "medium" },
+    source: "troymi.gov; GolfBlogger review"
+  }
+];
+
+/* Researched used-market ballparks (USD). Snapshot ~2026; always check live listings. */
+const PRICE_GUIDE = {
+  driver_g425: { label: "Ping G425 Max driver (used)", low: 160, high: 320, typical: 250, source: "Golf Club Index / SidelineSwap listings ~2026" },
+  wood_g425_5: { label: "Ping G425 Max 5-wood (used)", low: 150, high: 180, typical: 165, source: "GlobalGolf / NextRoundGolf listings" },
+  hybrid: { label: "Forgiving hybrid / rescue (used)", low: 60, high: 180, typical: 120, source: "GlobalGolf G425 hybrid; older rescues cheaper" },
+  irons_cavity: { label: "Used cavity-back iron set (5–PW)", low: 250, high: 650, typical: 400, source: "GlobalGolf / marketplace cavity sets; G425 higher" },
+  wedge: { label: "Used wedge (52/54/56/58)", low: 40, high: 100, typical: 70, source: "GlobalGolf used wedges" },
