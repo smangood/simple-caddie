@@ -1,0 +1,382 @@
+      skip: "Skip buying a new driver if you're finding the face."
+    };
+  }
+  if (!needsChange) {
+    return {
+      keep: true,
+      title: "Keep it — you're consistent, no need to spend $" + cost,
+      why: flags.length ? ("Minor notes: " + flags.join(", ") + ".") : "Miss rate and distance spread look fine for a 2–3×/year player.",
+      cost: cost,
+      skip: "Skip if it's working."
+    };
+  }
+  let fix = "Consider a used replacement (~$" + cost + ")";
+  if (flags.includes("grip") && !flags.includes("face") && !flags.includes("shaft")) {
+    fix = "Cheapest fix first: regrip (~$" + PRICE_GUIDE.grips.typical + "/club)";
+  }
+  return {
+    keep: false,
+    title: fix,
+    why: "Data earned a look — " + [
+      flags.length ? ("wear: " + flags.join(", ")) : "",
+      miss >= 0.55 ? ("miss rate " + Math.round(miss * 100) + "%") : "",
+      spread >= 25 ? ("range spread " + spread + " yd") : ""
+    ].filter(Boolean).join("; ") + ".",
+    cost: cost,
+    skip: "Still skip if today's contact is solid — cheapest fix first."
+  };
+}
+
+function searchLinksFor(c) {
+  const model = encodeURIComponent((c.searchModel || c.brand || c.name || "golf club").trim());
+  return [
+    { label: "eBay", href: "https://www.ebay.com/sch/i.html?_nkw=" + model },
+    { label: "2nd Swing", href: "https://www.google.com/search?q=site%3A2ndswing.com+" + model },
+    { label: "GlobalGolf", href: "https://www.google.com/search?q=site%3Aglobalgolf.com+" + model },
+    { label: "Regrip near me", href: "https://www.google.com/search?q=golf+regrip+near+me" }
+  ];
+}
+
+function computeTodayCheck() {
+  const tc = data.todayCheck || {};
+  const iron = clubById(tc.ironId || "7I");
+  const wood = clubById(tc.woodId || "HY");
+  const ironToday = Number(tc.ironToday);
+  const woodToday = Number(tc.woodToday);
+  let ironOffset = 0, woodOffset = 0;
+  const parts = [];
+
+  if (iron && ironToday > 0) {
+    const usual = iron.yards;
+    ironOffset = ironToday - usual; // negative = shorter today
+    if (Math.abs(ironOffset) <= 5) {
+      parts.push("Right on your range numbers for the " + iron.short + ". Trust them.");
+      ironOffset = 0;
+    } else if (ironOffset < 0) {
+      parts.push("You're hitting your " + iron.name + " " + ironToday + " today instead of your usual " + usual + ", so take one more club.");
+    } else {
+      parts.push("You're hitting your " + iron.name + " " + ironToday + " today instead of your usual " + usual + ", so you can take less club.");
+    }
+  }
+
+  if (wood && woodToday > 0) {
+    const usual = wood.yards;
+    woodOffset = woodToday - usual;
+    // Long-iron style message if checking a weak long iron vs rescue
+    if (tc.woodId === "6I" || (wood.kind === "iron" && woodOffset < -15)) {
+      const rescue = clubById("HY");
+      const rDist = rescue ? rescue.yards : 170;
+      const fly = Math.round(rDist * 0.9);
+      parts.push("Your " + wood.name + " is going " + woodToday + " instead of " + usual + ". Try an easy rescue, which you normally hit " + rDist + ", to fly it about " + fly + ".");
+      woodOffset = woodToday - usual;
+    } else if (Math.abs(woodOffset) <= 5) {
+      if (!parts.length) parts.push("Right on your range numbers. Trust them.");
+      woodOffset = 0;
+    } else if (woodOffset < 0) {
+      parts.push("Your " + wood.name + " is going " + woodToday + " instead of your usual " + usual + ". Take more club (or the rescue) and swing easy.");
+    } else {
+      parts.push("Your " + wood.name + " is going " + woodToday + " instead of your usual " + usual + ". You can take less club.");
+    }
+  }
+
+  if (!parts.length) parts.push("Right on your range numbers. Trust them.");
+
+  // Convert yard offsets to club-shift hints: ~10–12 yd per club
+  const ironShift = ironOffset <= -8 ? 1 : (ironOffset >= 8 ? -1 : 0);
+  const woodShift = woodOffset <= -10 ? 1 : (woodOffset >= 10 ? -1 : 0);
+
+  data.todayCheck = Object.assign({}, tc, {
+    ironOffset: ironShift,
+    woodOffset: woodShift,
+    ironYardsDelta: ironOffset,
+    woodYardsDelta: woodOffset,
+    message: parts.join(" "),
+    date: today()
+  });
+  save();
+  return data.todayCheck;
+}
+
+function applyTodayOffsets(idx, order, map, chosenKind) {
+  const tc = data.todayCheck || {};
+  let shift = 0;
+  if (chosenKind === "iron" || chosenKind === "wedge") shift += (tc.ironOffset || 0);
+  if (chosenKind === "wood" || chosenKind === "hybrid" || chosenKind === "driver") shift += (tc.woodOffset || 0);
+  // more club = higher index in ORDER (longer clubs are later)
+  return clamp(idx + shift, 0, order.length - 1);
+}
+
+
+function ironWoodCheck(c, need, input) {
+  if (!c || input.mode === "unknown") return "";
+  const tc = data.todayCheck || {};
+  if (tc.message && tc.date === today()) {
+    // Prefer today's check one-liner when present
+    return tc.message;
+  }
+  if (c.kind === "iron" && (c.id === "6I") && need >= 145) {
+    const hy = clubById("HY");
+    if (hy && hy.inBag) {
+      return "Your 6-iron usual is " + c.yards + ". Try an easy rescue, which you normally hit " + hy.yards + ", to fly it about " + Math.round(hy.yards * 0.9) + ".";
+    }
+  }
+  if (c.kind === "wood" || c.kind === "hybrid") return "Sweep it — brush the grass; do not dig.";
+  if (c.kind === "iron") return "Ball first, then a shallow divot.";
+  return "";
+}
+
+function baseRecommend(input) {
+  const playable = data.clubs.filter(c => c.inBag && c.id !== "PU");
+  const map = Object.fromEntries(playable.map(c => [c.id, c]));
+  let order = ORDER.filter(id => map[id]);
+  playable.forEach(c => {
+    if (order.includes(c.id)) return;
+    let inserted = false;
+    for (let i = 0; i < order.length; i++) {
+      if (map[order[i]].yards >= c.yards) { order.splice(i, 0, c.id); inserted = true; break; }
+    }
+    if (!inserted) order.push(c.id);
+  });
+
+  // Situations first
+  const sit = situationRecommend(input, map, playable, order);
+  if (sit) {
+    const chk = ironWoodCheck(clubById(sit.clubId), Number(input.yards) || 0, input);
+    if (chk && chk.trim()) {
+      sit.sentence = sit.sentence.replace(/[.!?]$/, "") + ". " + chk.trim();
+      if (!/[.!?]$/.test(sit.sentence)) sit.sentence += ".";
+    }
+    return sit;
+  }
+
+  if (input.lie === "bunker") {
+    const c = map["56"] || map["SW"] || map["52"] || map["PW"] || playable[0];
+    return {
+      clubId: c.id, club: c.name, tee: "No tee",
+      sentence: oneSentence(c.name + " and an easier swing — hit the sand and get it out, do not try to hit it far", input),
+      note: sourceLabel(c)
+    };
+  }
+  if (input.lie === "green") {
+    return {
+      clubId: "PU", club: "Putter", tee: "No tee",
+      sentence: oneSentence("Putter — start it on line and accept the pace", input),
+      note: "green"
+    };
+  }
+
+  const unknown = input.mode === "unknown" || input.yards === "" || input.yards == null;
+  const shaky = input.mode === "shaky";
+  const need = Number(input.yards);
+
+  // ≤30 yd short game (not tee)
+  if (!unknown && !shaky && need > 0 && need <= 30 && input.lie !== "tee") {
+    return shortGameRecommend(input, map, playable);
+  }
+
+  let shift = 0;
+  if (input.hill === "up") shift += 1;
+  if (input.hill === "down") shift -= 1;
+  if (input.lie === "rough") shift += 1;
+
+  // inside 40 legacy path (31-39) still wedge-focused
+  if (!unknown && !shaky && need > 30 && need < 40 && input.lie !== "tee") {
+    const shortOrder = ["56","52","SW","PW","9I"].filter(id => map[id]);
+    let sidx = Math.max(0, shortOrder.indexOf("52"));
+    if (shortOrder.indexOf("52") < 0) sidx = Math.max(0, shortOrder.indexOf("PW"));
+    sidx = clamp(sidx + shift, 0, shortOrder.length - 1);
+    const c = map[shortOrder[sidx]] || map["PW"] || playable[0];
+    const lead = input.hill === "up" || input.lie === "rough"
+      ? "Inside forty, uphill or rough, so a touch more club and an easier swing — on the green is enough"
+      : input.hill === "down"
+        ? "Inside forty and downhill, so less club — on the green is enough"
+        : "Inside forty, so the wedge and an easier swing — on the green is enough";
+    return { clubId: c.id, club: c.name, tee: "No tee", sentence: oneSentence(lead, input), note: sourceLabel(c) };
+  }
+
+  let idx, lead;
+  if (unknown || shaky) {
+    let base = forgivingPick(playable);
+    if (input.lie === "tee" && map["HY"]) base = map["HY"];
+    idx = Math.max(0, order.indexOf(base.id));
+    const hy = order.indexOf("HY");
+    const cap = hy >= 0 ? hy : order.length - 1;
+    idx = clamp(idx + shift, 0, cap);
+    {
+      const tmp = map[order[idx]];
+      if (tmp) idx = Math.min(cap, applyTodayOffsets(idx, order, map, tmp.kind));
+    }
+    const logged = playable.some(proven);
+    lead = logged
+      ? (shaky
+        ? "The number is shaky, so a forgiving club you have actually hit, and an easier swing"
+        : "Distance is unknown, so a forgiving club you have actually hit, and an easier swing")
+      : "Nothing is logged yet, so a forgiving club and an easier swing until the range sets a number";
+    if (input.hill === "up" && input.lie === "rough") lead = "Distance is shaky and it is uphill rough, so more club and an easier swing";
+    else if (input.hill === "up") lead = "Distance is shaky and it is uphill, so more club and an easier swing";
+    else if (input.lie === "rough" && input.hill === "down") lead = "Distance is shaky in downhill rough, so the same forgiving club and an easier swing";
+    else if (input.lie === "rough") lead = "Distance is shaky and it is rough, so more club and an easier swing";
+    else if (input.hill === "down") lead = "Distance is shaky and it is downhill, so less club and an easier swing";
+  } else {
+    idx = order.length - 1;
+    for (let i = 0; i < order.length; i++) {
+      if (map[order[i]].yards + 5 >= need) { idx = i; break; }
+    }
+    idx = clamp(idx + shift, 0, order.length - 1);
+    {
+      const tmp = map[order[idx]];
+      if (tmp) idx = applyTodayOffsets(idx, order, map, tmp.kind);
+    }
+    if (order[idx] === "DR") {
+      const onTee = input.lie === "tee";
+      const hyYards = map["HY"] ? map["HY"].yards : 170;
+      const driverNeeded = need >= hyYards - 5;
+      if (!onTee || input.lie === "rough" || !driverNeeded) {
+        const hy = order.indexOf("HY");
+        const five = order.indexOf("5W");
+        if (hy >= 0) idx = hy;
+        else if (five >= 0) idx = five;
+      }
+    }
+    if (input.hill === "up" && input.lie === "rough") lead = "Uphill and rough, so more club and an easier swing";
+    else if (input.hill === "up") lead = "Uphill, so more club and an easier swing";
+    else if (input.lie === "rough" && input.hill === "down") lead = "Downhill rough cancels, so the same club and an easier swing";
+    else if (input.lie === "rough") lead = "Rough, so more club and an easier swing";
+    else if (input.hill === "down") lead = "Downhill, so less club";
+    else lead = "Swing easy — the job is to hit the ball, not to hit it far";
+    const chosen = map[order[idx]];
+    if (chosen && chosen.id === "DR" && chosen.yards + 8 < need) {
+      lead = "No club covers that number — driver, easy, at the fat part of the fairway";
+    } else if (chosen && chosen.id !== "DR" && need > chosen.yards + 12 && input.lie !== "tee") {
+      lead = "More than you trust from here, so the hybrid and an easier swing — in play, not far";
+      const hy = order.indexOf("HY");
+      if (hy >= 0) idx = hy;
+    }
+  }
+
+  const c = map[order[idx]] || playable[0];
+  let sentence = oneSentence(lead, input);
+  const chk = ironWoodCheck(c, need, input);
+  if (chk && chk.trim()) {
+    sentence = sentence.replace(/[.!?]$/, "") + ". " + chk.trim();
+    if (!/[.!?]$/.test(sentence)) sentence += ".";
+  }
+  return {
+    clubId: c.id,
+    club: c.name,
+    tee: teeFor(c.id, input.lie),
+    sentence,
+    note: c.source === "guess" ? "guess until the range" : sourceLabel(c) + " · " + c.yards
+  };
+}
+
+function fillEstimates() {
+  const pw = clubById("PW");
+  const i8 = clubById("8I");
+  if (!pw || !i8) return;
+  if (pw.source !== "range" || i8.source !== "range") return;
+  const gap = Math.round((i8.yards - pw.yards) / 2) || 12;
+  [
+    ["9I", pw.yards + gap],
+    ["7I", i8.yards + gap],
+    ["6I", i8.yards + gap * 2],
+    ["52", Math.max(40, pw.yards - Math.round(gap * 0.6))],
+    ["56", Math.max(35, pw.yards - gap)],
+    ["AW", Math.max(45, pw.yards - Math.round(gap * 0.4))],
+    ["5W", (clubById("HY") && clubById("HY").source === "range") ? clubById("HY").yards + gap : i8.yards + gap * 3]
+  ].forEach(([id, yards]) => {
+    const c = clubById(id);
+    if (!c) return;
+    if (c.source === "range" || c.source === "mine") return;
+    c.yards = Math.round(yards / 5) * 5;
+    c.source = "guess";
+    c.est = true;
+  });
+}
+
+
+/* ===================== v2 engine ===================== */
+
+function pickOne(list, seed) {
+  if (!list || !list.length) return "";
+  const i = seed == null ? Math.floor(Math.random() * list.length) : Math.abs(seed) % list.length;
+  return list[i];
+}
+
+/* Trust = how often this club actually got hit. Course taps count fully,
+   range reps count half. Starts at 50% with no data. */
+function trustOf(c) {
+  if (!c) return { score: 0.5, n: 0, hits: 0, misses: 0, reps: 0, straight: 0 };
+  const hits = c.hits || 0, misses = c.misses || 0;
+  const straight = c.straights || 0;
+  const reps = straight + (c.lefts || 0) + (c.rights || 0) + (c.thins || 0);
+  const good = hits + 0.5 * straight;
+  const total = hits + misses + 0.5 * reps;
+  return { score: (good + 1) / (total + 2), n: hits + misses + reps, hits, misses, reps, straight };
+}
+function trustedRanking() {
+  return data.clubs.filter(c => c.inBag && c.id !== "PU")
+    .map(c => ({ c, t: trustOf(c) }))
+    .filter(x => x.t.n > 0)
+    .sort((a, b) => b.t.score - a.t.score || b.t.n - a.t.n);
+}
+
+function bagOrder() {
+  const playable = data.clubs.filter(c => c.inBag && c.id !== "PU");
+  const map = Object.fromEntries(playable.map(c => [c.id, c]));
+  let order = ORDER.filter(id => map[id]);
+  playable.forEach(c => {
+    if (order.includes(c.id)) return;
+    let inserted = false;
+    for (let i = 0; i < order.length; i++) {
+      if (map[order[i]].yards >= c.yards) { order.splice(i, 0, c.id); inserted = true; break; }
+    }
+    if (!inserted) order.push(c.id);
+  });
+  return { order, map };
+}
+
+/* ---- driver guard: 2 missed drives in a round -> hybrid off the tee ---- */
+function roundStartTs() {
+  if (data.live && data.live.date === today() && data.live.startedTs) return data.live.startedTs;
+  const r = data.rounds.find(x => x.date === today() && x.ts);
+  return r ? r.ts + 1 : 0;
+}
+function shotsThisRound() {
+  const start = roundStartTs();
+  return data.shots.filter(s => s.date === today() && (s.ts || 0) >= start);
+}
+function driverMissesThisRound() {
+  return shotsThisRound().filter(s => s.clubId === "DR" && s.result === "missed").length;
+}
+function driverBenched() {
+  const base = data.driverUnbench && data.driverUnbench.date === today() && data.driverUnbench.start === roundStartTs() ? data.driverUnbench.base : 0;
+  return driverMissesThisRound() - base >= 2;
+}
+
+function howCardFor(r, input) {
+  if (!r) return null;
+  const need = Number(input && input.yards) || 0;
+  const c = clubById(r.clubId);
+  if (r.clubId === "PU") return "putt";
+  if (input && (input.lie === "bunker" || input.situation === "bunker" || input.situation === "deeprough")) return null;
+  if (r.chip || (need > 0 && need <= 30)) return "chip";
+  if (!c) return null;
+  if (c.kind === "driver") return "driver";
+  if (c.kind === "wood") return "wood";
+  if (c.kind === "wedge") {
+    if (need > 0 && need <= 70) return "pitch";
+    return "wedge";
+  }
+  if (need > 0 && need <= 70) return "pitch";
+  if (need > 0 && need <= 100) return "wedge";
+  return "iron";
+}
+
+function recommend(input) {
+  const r = baseRecommend(input);
+  const { order, map } = bagOrder();
+  const need = Number(input.yards) || 0;
+  const known = input.mode !== "unknown" && input.mode !== "shaky" && need > 0;
+  const situational = !!input.situation || input.lie === "bunker" || input.lie === "green" || r.chip;
+
