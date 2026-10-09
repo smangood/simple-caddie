@@ -1,0 +1,255 @@
+  return `
+    ${topBar("Wear", "bag")}
+    <h2>${esc(c.name)} wear.</h2>
+    <p class="muted">Local photos + taps. Flags feed the cost-saver verdict.</p>
+    ${flags.length ? `<p class="small warn">Flags: ${esc(flags.join(", "))}</p>` : `<p class="small">No wear flags yet.</p>`}
+    <div class="verdict ${v.keep ? "" : "change"}"><strong>${esc(v.title)}</strong><p class="small">${esc(v.why)} ${esc(v.skip)}</p></div>
+    <div class="wear-grid">${blocks}</div>
+    <button class="ghost wide" data-act="bag-panel" data-panel="main">Back to bag</button>
+  `;
+}
+
+function backup() {
+  return `
+    <details class="no-print">
+      <summary>Backup on this phone</summary>
+      <div class="stack" style="margin-top:8px">
+        <button class="ghost" data-act="export">Copy backup JSON</button>
+        <button class="ghost" data-act="export-area">Show JSON (copy/paste)</button>
+        <input id="import-file" type="file" accept="application/json">
+        <textarea id="import-text" placeholder="Paste backup JSON here, then Import paste" class="hide" style="display:none"></textarea>
+        <button class="ghost" data-act="import-paste" style="display:none" id="btn-import-paste">Import paste</button>
+      </div>
+      <p class="small">No account. The card lives in this browser until you clear it. Copy a backup after a range session.</p>
+      <pre id="backup-pre" class="small" style="display:none;white-space:pre-wrap;word-break:break-word;background:#fffdf8;border:1px solid var(--line);border-radius:12px;padding:10px;max-height:200px;overflow:auto"></pre>
+    </details>`;
+}
+
+/* ===================== v2 screens ===================== */
+
+function srcBadge(c) {
+  const k = sourceLabel(c);
+  return `<span class="src ${k}">${k}</span>`;
+}
+function ytLink(q) { return "https://www.youtube.com/results?search_query=" + encodeURIComponent(q); }
+function outLink(href, label, cls) {
+  return `<a class="${cls || "ghost"} wide linkbtn" href="${esc(href)}" target="_blank" rel="noopener">${esc(label)}</a>`;
+}
+function flashHtml() {
+  if (!ui.flash) return "";
+  const f = ui.flash; ui.flash = "";
+  return `<div class="reply">${esc(f)}</div>`;
+}
+
+function intro() {
+  return `
+    <div class="kicker">How this works</div>
+    <h1>Simple Caddie</h1>
+    <div class="card">
+      <p><strong>Three doors.</strong></p>
+      <p><strong>Caddie</strong> — on the course. Type the yards from Golf Buddy or the rangefinder (or tap Don't know). You get one club, tee or no tee, and one sentence.</p>
+      <p><strong>Range + Pro</strong> — at the range. Straight shots set your real distances. It plans practice from your last round.</p>
+      <p><strong>Learn</strong> — how to hit each shot, plus short rules that make golf simpler.</p>
+      <p class="small">No handicap. No subscription. No account. No GPS. Nothing leaves this phone unless you tap Share.</p>
+      <p class="small">Distances are marked <span class="src guess">guess</span>, <span class="src mine">mine</span> (you typed it), or <span class="src range">range</span>. Yours beat guesses.</p>
+    </div>
+    <button class="btn wide" data-act="seen-intro">Got it</button>
+  `;
+}
+
+function fresh() {
+  const f = ui.fresh;
+  if (!f.clubs) f.clubs = DEFAULT_CLUBS.filter(c => c.inBag && c.id !== "PU").map(c => c.id);
+  if (!f.courses) f.courses = COURSE_PRESETS.map(p => p.id);
+  const dots = [0, 1, 2, 3].map(i => `<span class="${i <= f.step ? "on" : ""}"></span>`).join("");
+  if (f.step === 0) {
+    return `
+      <div class="kicker">Fresh start</div>
+      <h1>Simple Caddie</h1>
+      <div class="wizard-dots">${dots}</div>
+      <div class="card">
+        <p><strong>A pocket caddie for people who play a few times a year.</strong></p>
+        <p>On the course: type the yards (or tap Don't know) and get one club and one sentence.</p>
+        <p class="small">Three quick steps: your clubs, one distance you know, your courses. Nothing leaves this phone.</p>
+      </div>
+      <div class="stack" style="margin-top:12px">
+        <button class="btn wide" data-act="fresh-next">Set it up · 1 minute</button>
+        <button class="ghost wide" data-act="fresh-skip">Skip — use the standard bag</button>
+      </div>`;
+  }
+  if (f.step === 1) {
+    const chips = DEFAULT_CLUBS.filter(c => c.id !== "PU").map(c =>
+      `<button class="chip" data-act="fresh-club" data-id="${c.id}" aria-pressed="${f.clubs.includes(c.id)}">${esc(c.short === "Hybrid" ? "Hybrid" : c.short)}</button>`).join("");
+    return `
+      <div class="kicker">Step 1 of 3</div>
+      <h2>What's in your bag?</h2>
+      <div class="wizard-dots">${dots}</div>
+      <p class="muted">Tap to add or remove. Putter is always in. You can change this later.</p>
+      <div class="chips">${chips}</div>
+      <div class="split" style="margin-top:16px">
+        <button class="ghost" data-act="fresh-back">Back</button>
+        <button class="btn" data-act="fresh-next">Next</button>
+      </div>`;
+  }
+  if (f.step === 2) {
+    const opts = DEFAULT_CLUBS.filter(c => f.clubs.includes(c.id) && GAP_RATIO[c.id]).map(c =>
+      `<option value="${c.id}" ${f.clubId === c.id ? "selected" : ""}>${esc(c.name)}</option>`).join("");
+    return `
+      <div class="kicker">Step 2 of 3</div>
+      <h2>One club you know.</h2>
+      <div class="wizard-dots">${dots}</div>
+      <p class="muted">How far does one club fly when you hit it OK? We'll guess the rest. The range or your own numbers replace guesses later.</p>
+      <label class="field">Club</label>
+      <select id="fresh-club">${opts}</select>
+      <label class="field">Yards it carries</label>
+      <input id="fresh-carry" inputmode="numeric" value="${esc(f.carry)}" placeholder="e.g. 140">
+      <button class="chip wide" style="margin-top:10px" data-act="fresh-never" aria-pressed="${f.never}">Never played / no idea — use beginner numbers</button>
+      <div class="split" style="margin-top:16px">
+        <button class="ghost" data-act="fresh-back">Back</button>
+        <button class="btn" data-act="fresh-next">Next</button>
+      </div>`;
+  }
+  const list = COURSE_PRESETS.map(p => `
+    <label class="check"><input type="checkbox" data-fresh-course="${p.id}" ${f.courses.includes(p.id) ? "checked" : ""}> ${esc(p.name)} <span class="small">· ${esc(p.place)}</span></label>`).join("");
+  return `
+    <div class="kicker">Step 3 of 3</div>
+    <h2>Your courses.</h2>
+    <div class="wizard-dots">${dots}</div>
+    <p class="muted">These come with real scorecards. Keep the ones you play. Add your own if it's not here.</p>
+    <div class="card">${list}</div>
+    <label class="field">Add a course (optional)</label>
+    <input id="fresh-newcourse" value="${esc(f.newCourse)}" placeholder="Course name">
+    <div class="split" style="margin-top:16px">
+      <button class="ghost" data-act="fresh-back">Back</button>
+      <button class="btn" data-act="fresh-finish">Done</button>
+    </div>`;
+}
+
+function home() {
+  const last = data.rounds[0];
+  const live = data.live && data.live.date === today() ? data.live : null;
+  const lt = live ? liveTotals() : null;
+  return `
+    <div class="kicker">Simple Caddie</div>
+    <h1>Hit the ball.</h1>
+    <p class="muted">Not far — solid.</p>
+    ${flashHtml()}
+    ${live && lt.holes ? `<div class="tip"><strong>Round in progress</strong><p class="small" style="margin:4px 0 0">Hole ${live.hole} · ${lt.strokes} strokes through ${lt.holes}</p></div>` : ""}
+    <div class="stack">
+      <button class="job door" data-go="card"><strong>Caddie</strong><span>On the course. One club, tee or no tee, one sentence.</span></button>
+      <button class="job door" data-go="pro"><strong>Range + Pro</strong><span>Range session, real distances, practice plan from your last round.</span></button>
+      <button class="job door" data-go="learn"><strong>Learn</strong><span>How to hit each shot. Rules that make golf simpler.</span></button>
+    </div>
+    <div class="secondary">
+      <button class="ghost" data-go="mybag">My distances</button>
+      <button class="ghost" data-go="courses">Courses & tees</button>
+      <button class="ghost" data-go="trends">Trends</button>
+      <button class="ghost" data-go="friend">Help a friend</button>
+      <button class="ghost" data-go="bag">Edit bag · cost saver</button>
+      <button class="ghost" data-go="intro">Instructions</button>
+    </div>
+    <p class="small" style="margin-top:16px">${data.rangeSessions.reduce((n, s) => n + (s.total || 0), 0)} range reps · ${data.shots.length} course shots · ${data.rounds.length} rounds${last && last.score ? " · last score " + esc(last.score) : ""}.</p>
+    ${backup()}
+    <p class="small">Version ${esc(APP_VERSION)}</p>
+  `;
+}
+
+function holeBarHtml() {
+  const course = data.courses.find(c => c.id === data.activeCourseId);
+  if (!course) return `<button class="ghost wide" data-go="courses">Pick today's course (optional)</button>`;
+  const live = ensureLive();
+  const holes = courseHoles(course);
+  const h = holes.find(x => x.n === live.hole) || { n: live.hole, par: "", yards: "" };
+  return `<div class="card">
+    <div class="holebar">
+      <button class="step" data-act="hole-prev" aria-label="Previous hole">◀</button>
+      <div class="mid"><strong>Hole ${h.n}${h.par ? " · Par " + h.par : ""}</strong>
+        <span class="small">${h.yards ? esc(h.yards) + " yds" : "no yardage"}${course.tee && SCORECARDS[course.id] ? " · " + esc(course.tee) : ""} · ${esc(shortCourseName(course))}</span></div>
+      <button class="step" data-act="hole-next" aria-label="Next hole">▶</button>
+    </div>
+    ${h.yards && Number(h.par) > 3 ? `<button class="ghost wide" style="margin-top:8px" data-act="tee-read">Tee shot on ${h.n}</button>` : ""}
+    ${h.yards && Number(h.par) === 3 ? `<button class="ghost wide" style="margin-top:8px" data-act="tee-read">Par 3: ${esc(h.yards)} yds — pick a club</button>` : ""}
+  </div>`;
+}
+
+function card() {
+  const n = phoneHoles();
+  const pocket = n >= 2;
+  const tc = data.todayCheck || {};
+  const rows = data.clubs.filter(c => c.inBag && c.id !== "PU").map(c => `
+    <tr><td>${esc(c.name)} ${srcBadge(c)}</td><td class="num">${c.yards}</td></tr>`).join("");
+  return `
+    ${topBar("Caddie", "home")}
+    ${flashHtml()}
+    ${driverBenched() ? `<div class="reply warnline"><strong>Driver benched.</strong> Two missed drives this round — hybrid off the tee.<button class="ghost wide" style="margin-top:8px" data-act="unbench">Give the driver another shot</button></div>` : ""}
+    ${holeBarHtml()}
+    <div class="stack no-print" style="margin-top:12px">
+      <button class="btn wide" style="min-height:68px;font-size:22px" data-go="ask">Ask for a club</button>
+      <button class="ghost wide" data-act="one-thing">Give me one thing</button>
+      <div class="split">
+        <button class="ghost" data-go="scorecard">Scorecard</button>
+        <button class="ghost" data-go="round">End the round</button>
+      </div>
+    </div>
+    <div class="kicker" style="margin-top:16px">${pocket ? "Phone goes away" : "Glance card · hole " + (n + 1) + " of 2"}</div>
+    <p class="small">${pocket ? "You have the card. Ask only if the lie is a real question." : "Glance, then pocket it. After two holes, the phone goes away."}</p>
+    ${tc.message && tc.date === today() ? `<div class="tip"><strong>Iron + wood today</strong><p class="small" style="margin:6px 0 0">${esc(tc.message)}</p></div>` : ""}
+    <div class="card">
+      <table class="card-table"><thead><tr><th>Club</th><th class="num">Yards</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>
+    <div class="stack no-print" style="margin-top:12px">
+      ${pocket ? "" : `<button class="ghost wide" data-act="pocket-hole">Glance done · next hole</button>`}
+      <button class="ghost wide" data-go="todaycheck">Iron + wood today check</button>
+    </div>
+  `;
+}
+
+const YARD_CHIPS = [30, 50, 75, 100, 125, 150, 175, 200];
+function ask() {
+  const a = ui.ask;
+  if (!a.courseId && data.activeCourseId) a.courseId = data.activeCourseId;
+  const courseOpts = [`<option value="">No course</option>`].concat(data.courses.map(c =>
+    `<option value="${esc(c.id)}" ${a.courseId === c.id ? "selected" : ""}>${esc(c.name)}</option>`)).join("");
+  const course = data.courses.find(c => c.id === a.courseId);
+  let holeBits = "";
+  const holes = courseHoles(course);
+  if (holes.length) {
+    holeBits = `<label class="field">Hole</label><select data-field="hole"><option value="">—</option>${holes.map(h =>
+      `<option value="${h.n}" ${String(a.hole) === String(h.n) ? "selected" : ""}>${h.n}${h.par ? " · par " + h.par : ""}${h.yards ? " · " + esc(h.yards) : ""}</option>`).join("")}</select>`;
+  }
+  if (course && course.greens) {
+    const g = course.greens;
+    holeBits += `<p class="small">Greens: ${esc(g.speed)} speed · ${esc(g.firm)} · ${esc(g.slope)} slope · ${esc(g.size)}.</p>`;
+  }
+  const holeNow = holes.find(h => String(h.n) === String(a.hole));
+  const mode = (name, label) => `<button class="chip" data-mode="${name}" aria-pressed="${a.mode === name ? "true" : "false"}">${label}</button>`;
+  const choice = (group, value, label) => `<button class="choice" data-group="${group}" data-value="${value}" aria-pressed="${a[group] === value ? "true" : "false"}">${label}</button>`;
+  const chips = YARD_CHIPS.map(y => `<button class="chip" data-act="ydset" data-y="${y}" aria-pressed="${String(a.yards) === String(y)}">${y}</button>`).join("");
+  return `
+    ${topBar("Ask", "card")}
+    ${rangeBannerHtml()}
+    <h2>How far?</h2>
+    <p class="small">From Golf Buddy or the rangefinder. Or tap Don't know.</p>
+    <div class="yardbox">
+      <button class="step" data-act="yd" data-d="-5" aria-label="Minus 5">−5</button>
+      <input id="yards" inputmode="numeric" pattern="[0-9]*" placeholder="${a.mode === "unknown" ? "?" : "yds"}" value="${esc(a.yards)}">
+      <button class="step" data-act="yd" data-d="5" aria-label="Plus 5">+5</button>
+    </div>
+    <div class="chips">${chips}
+      ${holeNow && holeNow.yards ? `<button class="chip" data-act="ydset" data-y="${esc(holeNow.yards)}" data-lie="tee">Hole ${holeNow.n}: ${esc(holeNow.yards)}</button>` : ""}
+    </div>
+    <div class="row" style="margin-top:8px">${mode("unknown", "Don't know")}${mode("shaky", "Shaky number")}</div>
+    <label class="field">Lie</label>
+    <div class="row">${choice("lie", "tee", "Tee")}${choice("lie", "fairway", "Fairway")}${choice("lie", "rough", "Rough")}${choice("lie", "bunker", "Bunker")}${choice("lie", "green", "Green")}</div>
+    <label class="field">Hill</label>
+    <div class="row">${choice("hill", "flat", "Flat")}${choice("hill", "up", "Uphill")}${choice("hill", "down", "Downhill")}</div>
+    <label class="field">Are you tilted?</label>
+    <div class="row">${choice("tilt", "level", "Level")}${choice("tilt", "toward", "Toward the ball")}${choice("tilt", "away", "Away")}${choice("tilt", "left", "Left side low")}${choice("tilt", "right", "Right side low")}</div>
+    <label class="check" style="margin-top:10px"><input type="checkbox" id="must-carry" ${a.mustCarry ? "checked" : ""}> Must carry (bunker / rough / water)</label>
+    <button class="btn wide" style="margin-top:12px;min-height:68px;font-size:22px" data-act="recommend">What do I hit?</button>
+    <button class="ghost wide" style="margin-top:8px" data-act="one-thing">Give me one thing</button>
+    <h3>Quick situations</h3>
+    <button class="situ" data-act="situ" data-situ="punch"><strong>Blocked / punch out</strong><span>Low 7-iron back to the fairway.</span></button>
+    <button class="situ" data-act="situ" data-situ="tree"><strong>Tree trouble</strong><span>Sideways to short grass.</span></button>
+    <button class="situ" data-act="situ" data-situ="roll"><strong>Close: roll it</strong><span>Bump with the 52.</span></button>
+    <button class="situ" data-act="situ" data-situ="loft"><strong>Close: loft it</strong><span>Must carry — 56, soft landing.</span></button>
