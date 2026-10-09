@@ -1,0 +1,121 @@
+668a
+/* ===================== v3 content ===================== */
+
+/* "What do you want help with?" Pick any. Reshapes Practice (Pro) and Learn. */
+const FOCUS_AREAS = [
+  { id: "putting",  label: "Putting",               blurb: "Three-putts, short ones, speed.",          block: "putting",  how: "putt",   learn: "how",    home: ["carpet"] },
+  { id: "chipping", label: "Chipping",              blurb: "Around the green. Fat, thin, too far.",    block: "chipping", how: "chip",   learn: "how",    home: ["basket"] },
+  { id: "athome",   label: "At-home practice",      blurb: "No range. Living room or yard.",           block: "",         how: "",       learn: "home",   home: ["tenmin", "carpet", "basket", "mirror"] },
+  { id: "contact",  label: "Contact / ball-striking", blurb: "Thin, fat, topped. Hit it solid.",       block: "contact",  how: "iron",   learn: "how",    home: ["mirror", "tenmin"] },
+  { id: "driver",   label: "Driver",                blurb: "Off the tee without the big miss.",        block: "driver",   how: "driver", learn: "how",    home: ["mirror"] },
+  { id: "course",   label: "Course management",     blurb: "Which club, where to aim, when to lay up.", block: "trouble", how: "",       learn: "simple", home: ["plan"] }
+];
+
+/* At-home section. Everything fits in a living room or a small yard.
+   Based on:
+   - Putting on carpet: PGA.com "The Best Putting Drills" (3-foot circle, gate drill, lag to a line);
+     coin/tee gate is the common "gate drill".
+   - Laundry-basket chipping: the common "bucket/basket" chipping drill (land the ball in a target
+     from 3-10 yards) — e.g. Golf Digest / GOLF.com at-home short-game drills. Use foam or
+     limited-flight practice balls indoors.
+   - Mirror setup check: standard address checkpoints (grip knuckles, spine tilt, ball position,
+     arms hanging) — PGA.com and Golf Digest setup basics already cited for HOWTO.
+   - 10-minute routine: built from the pieces above. */
+const AT_HOME = [
+  { id: "carpet", title: "Putting on carpet", where: "Hallway or rug · putter + 3 balls + 2 coins", minutes: 10, focus: "putting",
+    steps: [
+      "Gate: put two coins just wider than the putter head, 1 foot in front of the ball. Roll 10 through the gate without touching a coin. That's a square face.",
+      "Three-footers: putt to a chair leg or a cup on its side. Make 10 in a row. Miss one, start again at zero.",
+      "Speed: from the far end of the room, roll 5 balls to stop against a wall or rug edge, not bounce off it. That's lag speed.",
+      "Eyes closed for the last 5 short ones. Count one back, two through."
+    ] },
+  { id: "basket", title: "Chipping into a laundry basket", where: "Yard, or indoors with foam balls · 52° + basket", minutes: 10, focus: "chipping",
+    steps: [
+      "Basket on its side or upright, 4 big steps away. Indoors: foam or plastic practice balls only, on a mat or old rug.",
+      "Ball back, hands ahead, weight on the front foot. Small swing — no wrist flick.",
+      "10 balls: count how many land in or touch the basket. Write the number down; beat it next time.",
+      "Move the basket to 6 steps. Same swing, a little longer. Change the length of the swing, never the speed."
+    ] },
+  { id: "mirror", title: "Mirror setup check", where: "Any full-length mirror · 7-iron or any club", minutes: 5, focus: "contact",
+    steps: [
+      "Face the mirror at address. You should see two knuckles on your top hand. Trail hand to the side, not on top.",
+      "Ball (imaginary) in the middle for irons. Club shaft leans a touch toward the target. Trail shoulder a little lower.",
+      "Turn sideways (down-the-line). Bend from the hips, arms hang straight down from the shoulders, knees soft. Hands about a fist and a half from your thighs.",
+      "Make 5 slow half swings watching the mirror: head stays about level, finish with your chest at the target and hold it."
+    ] },
+  { id: "tenmin", title: "10-minute living-room routine", where: "Living room · putter + one iron + 3 balls", minutes: 10, focus: "athome",
+    steps: [
+      "Minutes 0–2: mirror setup check (grip, posture, ball position). Two reps.",
+      "Minutes 2–5: 10 slow half swings with the iron, no ball, brushing the carpet in the same spot. Hold each finish 3 seconds.",
+      "Minutes 5–8: carpet putting — 10 three-footers in a row, then 3 lag putts to the wall.",
+      "Minutes 8–10: feet-together swings, 10 of them, slow. Balance is the lesson. Done."
+    ] },
+  { id: "plan", title: "Kitchen-table course plan", where: "Table · 10 minutes before the trip", minutes: 10, focus: "course",
+    steps: [
+      "Open Courses & tees and pick the course you're playing next.",
+      "For each hole: which side is safe, and which club you trust off the tee (not driver by default).",
+      "Circle three holes where you'll lay up to a number you like (80 or 100).",
+      "Decide now where you'll punch out sideways. Decisions made at home don't get made angry."
+    ] }
+];
+
+/* ---------------------------------------------------------------------------
+   Bag tune-up. Measuring + photo checks, then fixes in cost order.
+   Sources:
+   - Grip size from hand length (wrist crease to tip of middle finger) and glove size:
+     Golf Pride "Swing Grip Size Guide" (golfpride.com/.../swing-grip-size-guide):
+     <5" junior, 5–6.5" undersize, 6.6–7.5" standard, 7.6–9" midsize, >9" jumbo;
+     glove: Men's S = undersize, Men's M / M-L = standard, Men's L / XL = midsize, XL/XXL+ = jumbo.
+   - Height + wrist-to-floor static fit: PING Color Code Chart (ping.com/en-us/fitting/color-code-chart),
+     read via TGW and PGA TOUR Superstore guides: e.g. 5'10" with 34" wrist-to-floor = black/standard,
+     5'6" with 32" = red (1° flat, 1/2" shorter). The chart is a starting point; the sole/divot check wins.
+   - Reference lengths: Ping G425 7-iron 37" (GlobalGolf G425 spec table); G425 Max driver 45.75"
+     (nearlynewgolfclubs.co.uk listing, "standard" length).
+   - Lie from sole marks/divots: toe digging (toe-side deeper) = lie too flat; heel digging = too upright
+     (standard club-fitting rule, e.g. PGA TOUR Superstore lie-angle guide).
+   - Costs: regrip ~$8–13 per club installed with a Golf Pride Tour Velvet (cleanandhit.com 2026 regrip
+     cost; dfwgolfgrips.com price list) — the app says $8–15 to cover midsize grips. Lie/loft adjust
+     ~$5–17.50/club and shaft extension ~$6–15/club (southsidegolfco.com, aceofclubstp.com,
+     kenschallgolf.com price lists, 2026).
+   --------------------------------------------------------------------------- */
+const TUNEUP_COSTS = { regrip: "$8–15 per club", lie: "about $5–17 per club", length: "about $6–15 per club plus a grip" };
+const GLOVE_SIZES = [["S", "Men's S"], ["M", "Men's M"], ["ML", "Men's M/L"], ["L", "Men's L"], ["XL", "Men's XL"], ["XXL", "XXL+"]];
+
+const TUNEUP_PHOTOS = [
+  { id: "grip", title: "Grip close-up", how: "Phone 6 inches from your most-used grip (7-iron) in good light. Get the spot under your top-hand thumb.",
+    ref: "Good: matte, slightly tacky, pattern still sharp. Worn: shiny or smooth under the thumb, cracks, or the grip twists.",
+    qs: [
+      { id: "gripwear", q: "What does the grip look like?", opts: [["tacky", "Tacky, pattern sharp"], ["shiny", "Shiny / smooth"], ["cracked", "Cracked or torn"]] },
+      { id: "gripfit", q: "Hold the club with your top hand. Middle and ring fingertips…", opts: [["touch", "Just touch the palm"], ["dig", "Dig into the palm"], ["gap", "Don't reach the palm"]] }
+    ] },
+  { id: "sole", title: "Face-on at address, showing the sole", how: "On a hard floor or flat mat. Someone crouches in front of you, camera at ball height, and shoots the clubhead and your feet.",
+    ref: "Good: sole flat, or the toe just a credit card's thickness off the floor. Off: big gap under the toe (too upright) or under the heel (too flat).",
+    qs: [
+      { id: "sole", q: "At address, the sole…", opts: [["flat", "Sits flat / toe barely up"], ["toeup", "Toe clearly up"], ["heelup", "Heel clearly up"]] },
+      { id: "marks", q: "Divots or sole scuffs (from the range or face tape)…", opts: [["even", "Even / centered"], ["toe", "Deeper on the toe side"], ["heel", "Deeper on the heel side"], ["dunno", "Don't know yet"]] }
+    ] },
+  { id: "dtl", title: "Down-the-line stance", how: "Camera at hip height, behind you, pointing at the target along your hands. 7-iron at address.",
+    ref: "Good: arms hang straight down from the shoulders, hands about a fist and a half from the thighs, knees soft, back fairly straight.",
+    qs: [
+      { id: "arms", q: "Your arms and hands are…", opts: [["hang", "Hanging straight down"], ["reach", "Reaching out"], ["crowd", "Jammed in close"]] },
+      { id: "chokedown", q: "Do you grip down an inch or more on most clubs?", opts: [["no", "No"], ["yes", "Yes, usually"]] },
+      { id: "posture", q: "Your posture looks…", opts: [["ok", "Bent from the hips, comfy"], ["hunch", "Hunched / crouched"], ["tall", "Very upright"]] }
+    ] }
+];
+
+/* ---------------------------------------------------------------------------
+   CLUB_GUIDE — club TYPE first, then 2–3 real examples per budget.
+   lastChecked is shown in the app. Prices are snapshots from the sources in
+   each entry; never shown as more than a ballpark. Nothing here is invented:
+   if no reliable price was found the entry says "check listings".
+   Sources (all checked 2026-10-09):
+   [GCI-DR]  golfclubindex.com/ping/g425-max-driver — G425 Max driver avg $253 used, $160–$322, 41 sales to Mar 19 2026.
+   [CMI-DR]  clubmarketindex.com/club/ping-g425-max-driver — ~$200–$250 current used.
+   [GCI-425] golfclubindex.com/ping/g425 — G425 irons avg $524 used (35 sales to May 10 2026), great deal ≤ $463;
+             G425 Max fairway avg ~$221–228 used; a G425 Max 7-wood sold for $271 (Mar 2026, [GCI-DR] page).
+   [GG-425]  globalgolf.com/golf-clubs/1056478-ping-g425-iron-set/used — G425 hybrid $129.99–$179.99 used;
+             G440 iron set $569.99–$1,309.99 used.
+   [2S-PING] 2ndswing.com/golf-clubs/ping/hybrids — G440 hybrid new $267, used from $160.99; G430 3H from $153.99.
+   [GCI-G]   golfclubindex.com/ping/g — G440 Max driver sold $550 used and G440 Max 7-wood $330 (Feb 2026); G430 hybrid avg $240.
+   [PING-K]  ping.com news "G440 K driver" Jan 13 2026 — record Ping MOI, joins G440 Max/SFT/LST.
+   [TM-Q4D]  taylormadegolf.com Qi4D press release Jan 8 2026 — Qi4D / LS / Max / Max Lite, $649.99.
