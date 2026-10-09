@@ -1,0 +1,274 @@
+      ui.courseEdit = { id: "c" + Date.now(), name: "", place: "Michigan", notes: "", greens: { speed: "medium", firm: "medium", slope: "some", size: "medium" }, holes: Array.from({ length: 18 }, (_, i) => ({ n: i + 1, par: 4, yards: "", notes: "" })), holeEdits: {}, preset: false };
+      go("course");
+      break;
+    }
+    case "save-course": saveCourse(); break;
+    case "delete-course":
+      if (!confirm("Remove this course card?")) break;
+      data.courses = data.courses.filter(c => c.id !== ui.courseEdit.id);
+      if (data.activeCourseId === ui.courseEdit.id) data.activeCourseId = "";
+      save(); go("courses"); break;
+    case "add-18": ui.courseEdit.holes = Array.from({ length: 18 }, (_, i) => ({ n: i + 1, par: 4, yards: "", notes: "" })); render(); break;
+    case "set-active": data.activeCourseId = t.dataset.id; ui.ask.courseId = t.dataset.id; if (data.live && data.live.date === today()) data.live.courseId = t.dataset.id; save(); render(); break;
+    case "green-tap": ui.courseEdit.greens[t.dataset.gg] = t.dataset.gv; captureCourseEdit(); render(); break;
+    case "tee-pick": captureCourseEdit(); ui.courseEdit.tee = t.dataset.tee; render(); break;
+    case "start-range": startRange(); break;
+    case "rep": logRep(t.dataset.rep); break;
+    case "next-club": nextClub(); break;
+    case "save-note": {
+      const n = document.getElementById("pro-note");
+      const v = n ? n.value.trim() : "";
+      if (!v) break;
+      data.notes = [{ date: today(), text: v }].concat(data.notes || []).slice(0, 50);
+      if (data.rangeSessions[0] && data.rangeSessions[0].date === today()) data.rangeSessions[0].note = v;
+      save(); ui.flash = "Note saved."; render(); break;
+    }
+    case "save-rangenum": {
+      const inp = document.querySelector(`[data-rn="${t.dataset.id}"]`);
+      const nums = (inp ? inp.value : "").split(/[^0-9]+/).map(Number).filter(n => n >= 5 && n <= 400);
+      if (!nums.length) { alert("Type one or more yardages, like 150, 148."); break; }
+      const res = applyRangeClub(t.dataset.id, { yards: nums });
+      const c = res && res.club;
+      if (c) c.straights = (c.straights || 0) + nums.length;
+      save(); render(); break;
+    }
+    case "use-range": useRangeNumber(t.dataset.id); render(); break;
+    case "quick-start": {
+      const cl = document.getElementById("q-club"), ca = document.getElementById("q-carry");
+      ui.quick = { clubId: cl ? cl.value : "7I", carry: ca ? ca.value.trim() : "" };
+      if (!/^\d+$/.test(ui.quick.carry)) { alert("Type how far that club carries, in yards."); break; }
+      const n = applyQuickStart(ui.quick.clubId, ui.quick.carry, false);
+      ui.flash = "Guessed " + n + " clubs from your " + (clubById(ui.quick.clubId) || {}).name + ". Mine and range numbers were left alone.";
+      render(); break;
+    }
+    case "open-how": ui.howId = t.dataset.id; ui.howBack = t.dataset.back || "learn"; go("how"); break;
+    case "learn-tab": ui.learnTab = t.dataset.tab; render(); break;
+    case "share-simplify": shareText("Simplify the game", simplifyText()); break;
+    case "go-putter": ui.bagPanel = "putter"; go("bag"); break;
+    case "export": exportBackup(); break;
+    case "export-area": {
+      const pre = document.getElementById("backup-pre"), ta = document.getElementById("import-text"), btn = document.getElementById("btn-import-paste");
+      if (pre) { pre.style.display = "block"; pre.textContent = JSON.stringify(data, null, 2); }
+      if (ta) { ta.style.display = "block"; ta.value = ""; }
+      if (btn) btn.style.display = "block";
+      break;
+    }
+    case "import-paste": {
+      const ta = document.getElementById("import-text");
+      try { const parsed = JSON.parse(ta.value); if (!parsed.clubs) throw new Error("bad"); data = migrate(parsed); save(); alert("Backup restored on this phone."); go("home"); }
+      catch (err) { alert("That paste is not a Simple Caddie backup."); }
+      break;
+    }
+    case "bag-panel": ui.bagPanel = t.dataset.panel; if (t.dataset.panel === "main") go("bag"); else { ui.screen = "bag"; render(); window.scrollTo(0, 0); } break;
+    case "bag-ans": data.bagAnswers[t.dataset.qid] = t.dataset.ans; save(); render(); break;
+    case "chipview": ui.chipView = t.dataset.view; render(); break;
+    case "open-wear": ui.wearClubId = t.dataset.id; go("wear"); break;
+    case "wear-tap": { const c = clubById(t.dataset.id); if (c) { if (!c.wear) c.wear = {}; c.wear[t.dataset.field] = t.dataset.val; save(); render(); } break; }
+    case "save-todaycheck": {
+      const iron = document.getElementById("tc-iron"), ironY = document.getElementById("tc-iron-y"), wood = document.getElementById("tc-wood"), woodY = document.getElementById("tc-wood-y");
+      data.todayCheck = Object.assign({}, data.todayCheck, { ironId: iron ? iron.value : "7I", ironToday: ironY ? ironY.value.trim() : "", woodId: wood ? wood.value : "HY", woodToday: woodY ? woodY.value.trim() : "" });
+      computeTodayCheck(); render(); break;
+    }
+    case "save-putter": {
+      const len = document.getElementById("putter-len"), h = document.getElementById("golfer-h");
+      data.putterLengthIn = len ? len.value.trim() : ""; data.golferHeightIn = h ? h.value.trim() : "";
+      save(); ui.bagPanel = "putter"; render(); break;
+    }
+    case "add-custom-club": {
+      const id = "X" + Date.now();
+      data.clubs.push(freshClub({ id, name: "Custom club", short: "Custom", yards: 100, forgiving: true, kind: "iron", brand: "", inBag: true, source: "mine", straights: 0, lefts: 0, rights: 0, thins: 0, hits: 0, misses: 0, startHere: false }));
+      save(); ui.myBagEditId = id; go("clubedit"); break;
+    }
+    case "save-clubedit": {
+      const c = clubById(ui.myBagEditId);
+      if (c) {
+        const n = document.getElementById("ce-name"), s = document.getElementById("ce-short"), y = document.getElementById("ce-yards"), m = document.getElementById("ce-model");
+        if (n) c.name = n.value.trim() || c.name;
+        if (s) c.short = s.value.trim() || c.short;
+        if (m) c.searchModel = m.value.trim();
+        if (y && Number(y.value) > 0 && Math.round(Number(y.value)) !== c.yards) setMine(c.id, Number(y.value));
+        else if (y && Number(y.value) > 0 && c.source === "guess") setMine(c.id, Number(y.value));
+        save();
+      }
+      go("mybag"); break;
+    }
+    case "delete-club":
+      if (!confirm("Remove this custom club?")) break;
+      data.clubs = data.clubs.filter(c => c.id !== t.dataset.id); save(); go("mybag"); break;
+    // ---- Help a friend ----
+    case "friend-new": {
+      captureFriend();
+      const f = { id: "f" + Date.now(), name: "", never: false, clubId: "7I", carry: "", pick: null };
+      friends.friends.push(f); friends.activeId = f.id; ui.friend = { yards: "", mode: "" }; saveFriends(); render(); break;
+    }
+    case "friend-sel": captureFriend(); friends.activeId = t.dataset.id; ui.friend = { yards: "", mode: "" }; saveFriends(); render(); break;
+    case "friend-mode": captureFriend(); { const f = activeFriend(); if (f) { f.never = t.dataset.never === "1"; f.pick = null; } } saveFriends(); render(); break;
+    case "friend-save": captureFriend(); { const f = activeFriend(); if (f) f.pick = null; } saveFriends(); render(); break;
+    case "friend-yd": { captureFriend(); const n = (Number(ui.friend.yards) || 0) + Number(t.dataset.d); ui.friend.yards = n > 0 ? String(clamp(n, 5, 350)) : ""; ui.friend.mode = ""; render(); break; }
+    case "friend-ydset": captureFriend(); ui.friend.yards = t.dataset.y; ui.friend.mode = ""; render(); break;
+    case "friend-unknown": captureFriend(); ui.friend.mode = ui.friend.mode === "unknown" ? "" : "unknown"; if (ui.friend.mode) ui.friend.yards = ""; render(); break;
+    case "friend-pick": {
+      captureFriend();
+      const f = activeFriend(); if (!f) break;
+      if (!ui.friend.yards && ui.friend.mode !== "unknown") { alert("Type the yards, or tap Don't know."); break; }
+      f.pick = friendPick(f, ui.friend.yards, ui.friend.mode === "unknown");
+      if (ui.friend.yards) f.pick.line = ui.friend.yards + " yds: " + f.pick.line;
+      saveFriends(); render(); break;
+    }
+    case "friend-share": captureFriend(); { const f = activeFriend(); if (f) shareText("Simple Caddie card", friendCardText(f)); } break;
+    case "friend-del": {
+      const f = activeFriend(); if (!f || !confirm("Remove " + (f.name || "this friend") + "?")) break;
+      friends.friends = friends.friends.filter(x => x.id !== f.id); friends.activeId = friends.friends[0] ? friends.friends[0].id : ""; saveFriends(); render(); break;
+    }
+    default: break;
+  }
+});
+
+function captureCourseEdit() {
+  const c = ui.courseEdit; if (!c) return;
+  const n = document.getElementById("course-name"); if (n) c.name = n.value;
+  const p = document.getElementById("course-place"); if (p) c.place = p.value;
+  const no = document.getElementById("course-notes"); if (no) c.notes = no.value;
+  // remember typed hole values across re-render
+  const typed = {};
+  document.querySelectorAll("[data-hyards]").forEach(inp => { typed[inp.dataset.hyards] = Object.assign(typed[inp.dataset.hyards] || {}, { yards: inp.value.trim() }); });
+  document.querySelectorAll("[data-hnotes]").forEach(inp => { typed[inp.dataset.hnotes] = Object.assign(typed[inp.dataset.hnotes] || {}, { notes: inp.value.trim() }); });
+  document.querySelectorAll("[data-hpar]").forEach(inp => { typed[inp.dataset.hpar] = Object.assign(typed[inp.dataset.hpar] || {}, { par: Number(inp.value) }); });
+  c._typed = typed;
+}
+
+function saveCourse() {
+  const c = ui.courseEdit;
+  captureCourseEdit();
+  const name = (c.name || "").trim();
+  if (!name) { alert("Name the course."); return; }
+  const sc = SCORECARDS[c.id];
+  const typed = c._typed || {};
+  const next = Object.assign({}, c, { name, place: (c.place || "").trim(), notes: (c.notes || "").trim(), greens: Object.assign({}, c.greens) });
+  delete next._typed;
+  if (sc) {
+    // what the card says for this tee; only differences are stored as your edits
+    const cardHoles = courseHoles(Object.assign({}, next, { holeEdits: {} }));
+    const edits = {};
+    cardHoles.forEach(h => {
+      const ty = typed[h.n] || {};
+      const y = ty.yards != null ? ty.yards : "";
+      const notes = ty.notes || "";
+      const e = {};
+      if (y && y !== h.card) { e.yards = y; e.par = h.par; }
+      if (notes) e.notes = notes;
+      if (Object.keys(e).length) edits[h.n] = e;
+    });
+    next.holeEdits = edits;
+  } else {
+    next.holes = (c.holes || []).map(h => {
+      const ty = typed[h.n] || {};
+      return { n: h.n, par: ty.par || h.par, yards: ty.yards != null ? ty.yards : (h.yards || ""), notes: ty.notes != null ? ty.notes : (h.notes || "") };
+    });
+  }
+  const i = data.courses.findIndex(x => x.id === next.id);
+  if (i >= 0) data.courses[i] = next; else data.courses.push(next);
+  save();
+  go("courses");
+}
+
+document.getElementById("app").addEventListener("change", (e) => {
+  const t = e.target;
+  if (t.id === "must-carry") { ui.ask.mustCarry = t.checked; return; }
+  if (t.id === "range-switch") { switchRangeClub(t.value); return; }
+  if (t.id === "live-course") { const l = ensureLive(); l.courseId = t.value; if (t.value) data.activeCourseId = t.value; save(); render(); return; }
+  if (t.dataset.freshCourse) {
+    const f = ui.fresh; const id = t.dataset.freshCourse;
+    f.courses = t.checked ? f.courses.concat(id) : f.courses.filter(x => x !== id);
+    return;
+  }
+  if (t.dataset.field) {
+    captureAsk();
+    ui.ask[t.dataset.field] = t.value;
+    if (t.dataset.field === "courseId") {
+      data.activeCourseId = t.value;
+      ui.ask.hole = "";
+      save();
+    }
+    render();
+    return;
+  }
+  if (t.dataset.yards) { const n = Number(t.value); if (n > 0) setMine(t.dataset.yards, n); return; }
+  if (t.dataset.model) { const c = clubById(t.dataset.model); if (c) { c.searchModel = t.value.trim(); save(); } return; }
+  if (t.id === "bag-photo-input" && t.files && t.files[0]) { readImageFile(t.files[0], (url) => { data.bagPhoto = url; save(); render(); }); return; }
+  if (t.dataset.clubPhoto && t.files && t.files[0]) { const c = clubById(t.dataset.clubPhoto); readImageFile(t.files[0], (url) => { if (c) { c.photo = url; save(); render(); } }); return; }
+  if (t.dataset.wearPhoto && t.files && t.files[0]) {
+    const c = clubById(t.dataset.wearPhoto); const field = t.dataset.wearField;
+    readImageFile(t.files[0], (url) => { if (c) { if (!c.wearPhotos) c.wearPhotos = {}; c.wearPhotos[field] = url; save(); render(); } });
+    return;
+  }
+  if (t.dataset.side) {
+    const id = t.dataset.side;
+    if (t.checked) { if (!ui.round.sideways.includes(id)) ui.round.sideways.push(id); }
+    else ui.round.sideways = ui.round.sideways.filter(x => x !== id);
+    const s = document.getElementById("score"); if (s) ui.round.score = s.value.trim();
+    return;
+  }
+  if (t.dataset.sc) {
+    const l = ensureLive();
+    const h = l.holes.find(x => String(x.n) === t.dataset.sc);
+    if (h) {
+      if (t.dataset.scf === "pen") h.pen = t.checked; else h[t.dataset.scf] = t.value.trim();
+      if (t.dataset.scf === "strokes" && Number(t.value) > 0) l.hole = Math.min(18, h.n + 1);
+      save();
+    }
+    return;
+  }
+  if (t.id === "import-file" && t.files && t.files[0]) importBackup(t.files[0]);
+});
+
+function readImageFile(file, cb) {
+  const reader = new FileReader();
+  reader.onload = () => cb(reader.result);
+  reader.readAsDataURL(file);
+}
+function exportBackup() {
+  const blob = JSON.stringify(data, null, 2);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(blob).then(() => alert("Backup copied. Paste it into a note.")).catch(() => download(blob));
+  } else download(blob);
+}
+function download(text) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+  a.download = "simple-caddie-backup.json";
+  a.click();
+}
+function importBackup(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+      if (!parsed.clubs) throw new Error("not a caddie backup");
+      data = migrate(parsed); save();
+      alert("Backup restored on this phone.");
+      go("home");
+    } catch (e) { alert("That file is not a Simple Caddie backup."); }
+  };
+  reader.readAsText(file);
+}
+
+/* Installable app: only when served over http(s). Opening the single file from
+   Files (file://) skips all of this, so nothing errors offline. */
+(function pwa() {
+  if (!/^https?:$/.test(location.protocol)) return;
+  try {
+    const add = (rel, href, extra) => { const l = document.createElement("link"); l.rel = rel; l.href = href; if (extra) Object.assign(l, extra); document.head.appendChild(l); };
+    add("manifest", "manifest.webmanifest");
+    add("apple-touch-icon", "icons/apple-touch-icon.png");
+    add("icon", "icons/icon-192.png", { type: "image/png" });
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
+    }
+  } catch (e) { /* not fatal */ }
+})();
+
+render();
+</script>
+</body>
+</html>
