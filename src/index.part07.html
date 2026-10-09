@@ -1,0 +1,276 @@
+      <text x="200" y="55" font-size="12" fill="#1b4332">land soft · little roll</text>
+    </svg>`;
+  }
+  return `<svg viewBox="0 0 360 160" xmlns="http://www.w3.org/2000/svg" aria-label="Bump and run diagram">
+    <rect x="0" y="110" width="180" height="50" fill="#c8b896"/>
+    <rect x="180" y="100" width="180" height="60" fill="#7d9b6a"/>
+    <text x="8" y="150" font-size="11" fill="#5e564c">fringe</text>
+    <text x="260" y="150" font-size="11" fill="#1b4332">green</text>
+    <circle cx="70" cy="108" r="6" fill="#f5f5f5" stroke="#1c1915"/>
+    <text x="40" y="98" font-size="11" fill="#1c1915">ball back</text>
+    <path d="M80 72 L80 108" stroke="#8a5a12" stroke-width="3"/>
+    <text x="86" y="88" font-size="11" fill="#8a5a12">hands ahead</text>
+    <path d="M70 108 Q140 85 200 105 Q260 120 320 108" fill="none" stroke="#1b4332" stroke-width="2"/>
+    <circle cx="200" cy="105" r="4" fill="#1b4332"/>
+    <text x="175" y="92" font-size="11" fill="#1b4332">land</text>
+    <text x="240" y="130" font-size="12" fill="#1b4332">roll out to hole</text>
+  </svg>`;
+}
+
+function chipaid() {
+  const kind = ui.chipView || "bump";
+  const ytBump = "https://www.youtube.com/results?search_query=bump+and+run+chip+52+degree+shorts";
+  const ytLoft = "https://www.youtube.com/results?search_query=lofted+chip+56+degree+wedge+basics";
+  return `
+    ${topBar("Chip pictures", "ask")}
+    <h2>Cart view.</h2>
+    <p class="muted">Inline pictures only. Video opens a YouTube search when you tap — nothing is embedded.</p>
+    <div class="row">
+      <button class="chip" data-act="chipview" data-view="bump" aria-pressed="${kind === "bump"}">Bump-and-run</button>
+      <button class="chip" data-act="chipview" data-view="loft" aria-pressed="${kind === "loft"}">Lofted chip</button>
+    </div>
+    <div class="svg-wrap">${chipSvg(kind)}</div>
+    <div class="card">
+      <p>${kind === "bump"
+        ? "52° (or PW). Ball back, hands ahead, land on the green fringe or first step, let it roll."
+        : "56°. Ball slightly back, hands ahead, higher flight, land a step on and stop."}</p>
+      <a class="btn wide" style="display:block;text-decoration:none;line-height:56px" href="${kind === "bump" ? ytBump : ytLoft}" target="_blank" rel="noopener">Watch a quick video (YouTube search)</a>
+    </div>
+  `;
+}
+
+function tipList(items, back, title, blurb) {
+  const blocks = items.map(t => `
+    <div class="tip">
+      <strong>${esc(t.title)}</strong>
+      <p class="small" style="margin:6px 0 0">${esc(t.text)}</p>
+      <button class="ghost" style="margin-top:8px;min-height:44px" data-act="speak-text" data-text="${esc(t.title + ". " + t.text)}">Read it to me</button>
+    </div>`).join("");
+  return `${topBar(title, back)}<h2>${esc(title)}</h2><p class="muted">${esc(blurb)}</p>${blocks}`;
+}
+function tips() { return tipList(TIPS, "pro", "Swing tips", "Near-beginner, 1–2× a year. Short and plain."); }
+function drills() { return tipList(DRILLS, "pro", "Range drills", "Do these at the range. One at a time."); }
+function checks() { return tipList(CHECKPOINTS, "pro", "What to look for", "Checkpoints — grip, ball, balance, divot, head."); }
+
+function miss() {
+  const blocks = Object.keys(MISS_CUES).map(k => {
+    const c = MISS_CUES[k];
+    return `<div class="card">
+      <strong>${esc(c.title)}</strong>
+      ${c.lines.map(l => `<p class="small">${esc(l)}</p>`).join("")}
+      <button class="ghost" data-act="speak-text" data-text="${esc(c.title + ". " + c.lines.join(" "))}">Read it to me</button>
+    </div>`;
+  }).join("");
+  return `${topBar("Miss cues", "pro")}<h2>If it missed.</h2><div class="stack">${blocks}</div>
+    <p class="small" style="margin-top:12px">No camera, no launch monitor, no sensors. A GoPro can be watched later by hand.</p>`;
+}
+
+function bag() {
+  if (ui.bagPanel === "prices") return bagPrices();
+  if (ui.bagPanel === "wedges") return bagWedges();
+  if (ui.bagPanel === "photo") return bagPhoto();
+  if (ui.bagPanel === "cards") return bagCards();
+  if (ui.bagPanel === "putter") return bagPutter();
+  if (ui.bagPanel === "decisions") return bagDecisions();
+
+  const rows = data.clubs.filter(c => c.id !== "PU").map(c => `
+    <div class="card" style="margin-bottom:8px">
+      <div class="row" style="align-items:center;justify-content:space-between">
+        <strong>${esc(c.name)}${c.keeper ? ' <span class="badge ok">keeper</span>' : ""}${c.startHere ? ' <span class="badge ok">start-here</span>' : ""}</strong>
+        <button class="chip" data-bag="${c.id}" aria-pressed="${c.inBag ? "true" : "false"}">${c.inBag ? "In the bag" : "Out"}</button>
+      </div>
+      ${c.brand ? `<div class="tag">${esc(c.brand)}</div>` : ""}
+      <label class="field">Yards the caddie uses</label>
+      <input inputmode="numeric" data-yards="${c.id}" value="${c.yards}">
+      <label class="field">Search model (for used listings)</label>
+      <input type="text" data-model="${c.id}" value="${esc(c.searchModel || c.name)}">
+      <div class="tag">${esc(sourceLabel(c))}${proven(c) ? " · actually hit" : " · guess"} · ${c.hits || 0}H/${c.misses || 0}M</div>
+      <div class="row" style="margin-top:8px">
+        <button class="ghost sm" data-act="open-wear" data-id="${c.id}">Wear checklist</button>
+        <button class="ghost sm" data-go="clubedit" data-edit="${c.id}">Edit / photo</button>
+      </div>
+      <p class="small" style="margin-top:8px">Used search (opens on tap):</p>
+      <div class="row">${searchLinksFor(c).map(l =>
+        `<a class="chip" style="text-decoration:none;text-align:center;line-height:48px" href="${l.href}" target="_blank" rel="noopener">${esc(l.label)}</a>`
+      ).join("")}</div>
+    </div>`).join("");
+
+  return `
+    ${topBar("Bag", "home")}
+    <h2>Edit bag · cost saver.</h2>
+    <p class="muted"><strong>Not perfect, just consistent. Cheapest fix first.</strong></p>
+    <ul class="plain">
+      <li>Used cavity-back irons.</li>
+      <li>One hybrid instead of the long irons.</li>
+      <li>Fresh grips. Two or three rounds a year, they still die in the garage.</li>
+      <li>No blades bought because they look like a tour bag.</li>
+    </ul>
+    <p class="small"><strong>Start-here:</strong> 5-wood, rescue/hybrid, 56°, 52°. G425 driver is the gapping anchor — keeper, not a problem area.</p>
+    <div class="stack" style="margin-bottom:12px">
+      <button class="btn wide" data-act="bag-panel" data-panel="decisions">Cost-saver decision cards</button>
+      <button class="ghost wide" data-act="bag-panel" data-panel="cards">G425 / rescue / wedge cards</button>
+      <button class="ghost wide" data-act="bag-panel" data-panel="wedges">Wedge gapping card</button>
+      <button class="ghost wide" data-act="bag-panel" data-panel="putter">Putter length</button>
+      <button class="ghost wide" data-act="bag-panel" data-panel="photo">Bag-level checklist</button>
+      <button class="ghost wide" data-act="bag-panel" data-panel="prices">Researched used prices</button>
+      <button class="ghost wide" data-go="mybag">My bag chart + photo</button>
+      <button class="btn wide" data-act="speak-text" data-text="Not perfect, just consistent. Cheapest fix first. Used cavity-back irons. One hybrid instead of the long irons. Fresh grips. Do not buy blades because they look like a tour bag.">Read bag advice</button>
+    </div>
+    <p class="small">Tip: To identify a club from a photo, use Google Lens or your phone camera search, then type the model here.</p>
+    <h3 style="margin-top:16px">Clubs</h3>
+    <p class="small">Tap a yardage if you already know it. The range overwrites a guess.</p>
+    ${rows}
+    <button class="ghost wide" style="margin-top:10px" data-act="add-custom-club">Add a custom club</button>
+  `;
+}
+
+function bagDecisions() {
+  const ids = ["DR","5W","HY","AW","52","54","56","58","PW"];
+  const cards = ids.map(id => {
+    const c = clubById(id);
+    if (!c) return "";
+    const v = costVerdict(c);
+    return `<div class="card" style="margin-bottom:10px">
+      <strong>${esc(c.name)}${c.keeper ? ' · Keeper' : ""}</strong>
+      <div class="verdict ${v.keep ? "" : "change"}">
+        <strong>${esc(v.title)}</strong>
+        <p class="small" style="margin:6px 0 0">${esc(v.why)}</p>
+        <p class="small">Cost ballpark ~$${v.cost}. ${esc(v.skip)}</p>
+      </div>
+      <div class="row">${searchLinksFor(c).map(l =>
+        `<a class="chip" style="text-decoration:none;text-align:center;line-height:44px;font-size:14px" href="${l.href}" target="_blank" rel="noopener">${esc(l.label)}</a>`
+      ).join("")}</div>
+    </div>`;
+  }).join("");
+  return `${topBar("Decisions", "bag")}
+    <h2>Not perfect, just consistent.</h2>
+    <p class="muted">Cheapest fix first. Default is keep — change only when wear, miss rate, or range spread earns it.</p>
+    ${cards}
+    <button class="ghost wide" data-act="bag-panel" data-panel="main">Back to bag</button>`;
+}
+
+function bagPrices() {
+  const rows = Object.keys(PRICE_GUIDE).map(k => {
+    const p = PRICE_GUIDE[k];
+    return `<div class="card" style="margin-bottom:8px">
+      <strong>${esc(p.label)}</strong>
+      <p class="price">$${p.low}–$${p.high} <span class="small">(typical ~$${p.typical})</span></p>
+      <p class="small">Source: ${esc(p.source)}</p>
+    </div>`;
+  }).join("");
+  return `${topBar("Prices", "bag")}<h2>Used-market ballparks.</h2>
+    <p class="muted">Snapshot researched for this build. Always check live listings before you buy. Regrip often beats a new head.</p>
+    ${rows}
+    <button class="ghost wide" data-act="bag-panel" data-panel="main">Back to bag</button>`;
+}
+
+function bagWedges() {
+  const ids = ["PW","AW","52","54","56","58","SW"];
+  const rows = ids.map(id => {
+    const c = clubById(id);
+    if (!c) return "";
+    const v = costVerdict(c);
+    return `<div class="card" style="margin-bottom:8px">
+      <strong>${esc(c.short)} · ${c.yards} yd ${c.inBag ? "" : "(out)"}</strong>
+      <div class="tag">${esc(sourceLabel(c))}</div>
+      <div class="verdict ${v.keep ? "" : "change"}"><strong>${esc(v.title)}</strong><p class="small">${esc(v.why)} ${esc(v.skip)}</p></div>
+    </div>`;
+  }).join("");
+  return `${topBar("Wedges", "bag")}
+    <h2>Wedge card (incl. AW + 54/58).</h2>
+    <p class="muted">Start-here on course: 52 roll, 56 loft/sand. Keep unless wear/miss data earns a change.</p>
+    ${rows}
+    <button class="ghost wide" data-act="bag-panel" data-panel="main">Back to bag</button>`;
+}
+
+function bagPhoto() {
+  const items = BAG_PHOTO_CHECKS.map(ch => {
+    const ans = data.bagAnswers[ch.id];
+    return `<div class="card" style="margin-bottom:8px">
+      <p><strong>${esc(ch.q)}</strong></p>
+      <div class="row">
+        <button class="chip" data-act="bag-ans" data-qid="${ch.id}" data-ans="yes" aria-pressed="${ans === "yes"}">Yes</button>
+        <button class="chip" data-act="bag-ans" data-qid="${ch.id}" data-ans="no" aria-pressed="${ans === "no"}">No</button>
+      </div>
+      ${ans ? `<p class="small">${ans === ch.good ? "Good." : "Fix: "} ${esc(ch.tip)}</p>` : `<p class="small">${esc(ch.tip)}</p>`}
+    </div>`;
+  }).join("");
+  return `${topBar("Checklist", "bag")}
+    <h2>Bag-level checklist.</h2>
+    <p class="muted">Whole-bag questions. Per-club grooves/face/sole/grip/shaft live under Wear checklist on each club.</p>
+    ${items}
+    <button class="ghost wide" data-act="bag-panel" data-panel="main">Back to bag</button>`;
+}
+
+function bagCards() {
+  const dr = costVerdict(clubById("DR"));
+  const fw = costVerdict(clubById("5W"));
+  const hy = costVerdict(clubById("HY"));
+  return `${topBar("Cards", "bag")}
+    <h2>Keeper + start-here cards.</h2>
+    <div class="card">
+      <strong>G425 driver — Keeper, not a problem area</strong>
+      <p class="small">Gapping anchor for the set. Forgiving Max-class head. Don't chase a new driver until range straights prove the face is found. Used ballpark $${PRICE_GUIDE.driver_g425.low}–$${PRICE_GUIDE.driver_g425.high}.</p>
+      <div class="verdict"><strong>${esc(dr.title)}</strong><p class="small">${esc(dr.why)} ${esc(dr.skip)}</p></div>
+    </div>
+    <div class="card">
+      <strong>G425 5-wood card</strong>
+      <p class="small">Start-here fairway club. Tee it low or sweep off the deck. Used ~$${PRICE_GUIDE.wood_g425_5.typical}.</p>
+      <div class="verdict ${fw.keep ? "" : "change"}"><strong>${esc(fw.title)}</strong><p class="small">${esc(fw.why)} ${esc(fw.skip)}</p></div>
+    </div>
+    <div class="card">
+      <strong>Rescue / hybrid card</strong>
+      <p class="small">R7 rescue or similar. Replaces long irons. Sweep, don't dig. Used $${PRICE_GUIDE.hybrid.low}–$${PRICE_GUIDE.hybrid.high}.</p>
+      <div class="verdict ${hy.keep ? "" : "change"}"><strong>${esc(hy.title)}</strong><p class="small">${esc(hy.why)} ${esc(hy.skip)}</p></div>
+    </div>
+    <div class="card">
+      <strong>Grips</strong>
+      <p class="small">Regrip ~$${PRICE_GUIDE.grips.low}–$${PRICE_GUIDE.grips.high}/club. Cheapest fix first.</p>
+      <a class="chip" style="text-decoration:none;display:inline-block;line-height:48px;padding:0 14px" href="https://www.google.com/search?q=golf+regrip+near+me" target="_blank" rel="noopener">Regrip near me</a>
+    </div>
+    <button class="btn wide" data-act="speak-text" data-text="Not perfect, just consistent. Cheapest fix first. G425 driver is the keeper and gapping anchor. Start here with the five wood, the rescue, the fifty-two and the fifty-six. Fresh grips before new heads.">Read it to me</button>
+    <button class="ghost wide" style="margin-top:8px" data-act="bag-panel" data-panel="main">Back to bag</button>`;
+}
+
+function todaycheck() {
+  const tc = data.todayCheck || {};
+  const ironOpts = data.clubs.filter(c => c.kind === "iron" || c.kind === "wedge").map(c =>
+    `<option value="${c.id}" ${tc.ironId === c.id ? "selected" : ""}>${esc(c.name)} (usual ${c.yards})</option>`).join("");
+  const woodOpts = data.clubs.filter(c => c.kind === "wood" || c.kind === "hybrid" || c.kind === "iron").map(c =>
+    `<option value="${c.id}" ${tc.woodId === c.id ? "selected" : ""}>${esc(c.name)} (usual ${c.yards})</option>`).join("");
+  return `
+    ${topBar("Today check", "card")}
+    <h2>Iron + wood today.</h2>
+    <p class="muted">Enter what you're hitting today. Offsets apply to later Caddie picks — irons/wedges and woods/hybrids separately.</p>
+    ${rangeBannerHtml()}
+    <label class="field">Iron / wedge</label>
+    <select id="tc-iron">${ironOpts}</select>
+    <label class="field">Yards today</label>
+    <input id="tc-iron-y" inputmode="numeric" value="${esc(tc.ironToday || "")}" placeholder="e.g. 150">
+    <label class="field">Wood / hybrid / long iron</label>
+    <select id="tc-wood">${woodOpts}</select>
+    <label class="field">Yards today</label>
+    <input id="tc-wood-y" inputmode="numeric" value="${esc(tc.woodToday || "")}" placeholder="e.g. 200">
+    <button class="btn wide" style="margin-top:12px" data-act="save-todaycheck">Save today check</button>
+    ${tc.message ? `<div class="tip" style="margin-top:12px"><strong>One-liner</strong><p class="small">${esc(tc.message)}</p>
+      <button class="ghost" data-act="speak-text" data-text="${esc(tc.message)}">Read it to me</button></div>` : ""}
+  `;
+}
+
+function wear() {
+  const c = clubById(ui.wearClubId);
+  if (!c) return bag();
+  const blocks = WEAR_FIELDS.map(f => {
+    const val = (c.wear || {})[f.id] || "";
+    const photo = (c.wearPhotos || {})[f.id] || "";
+    return `<div class="card">
+      <strong>${esc(f.label)}</strong>
+      <input type="file" accept="image/*" capture="environment" data-wear-photo="${c.id}" data-wear-field="${f.id}">
+      ${photo ? `<img class="thumb" src="${photo}" alt="${esc(f.label)}">` : ""}
+      <div class="row" style="margin-top:8px">${f.opts.map(([v,l]) =>
+        `<button class="chip" data-act="wear-tap" data-id="${c.id}" data-field="${f.id}" data-val="${v}" aria-pressed="${val === v}">${l}</button>`
+      ).join("")}</div>
+    </div>`;
+  }).join("");
+  const flags = wearFlags(c);
+  const v = costVerdict(c);
