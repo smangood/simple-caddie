@@ -1,0 +1,50 @@
+229a
+  /* v3 additions: bigger tap targets, typeless inputs styled, new blocks */
+  input:not([type]), input[inputmode] {
+    width: 100%; background: #fffdf8; border: 1px solid var(--line);
+    border-radius: 12px; padding: 12px 14px; font-size: 18px; min-height: 52px;
+  }
+  .yardbox input { min-height: 64px; }
+  .split > * { min-width: 0; }
+  .back { min-height: 48px; min-width: 64px; font-size: 18px; text-align: left; }
+  summary { min-height: 48px; display: flex; align-items: center; cursor: pointer; }
+  .ghost.sm { min-height: 48px; }
+  .focusline { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; width: 100%; min-height: 56px;
+    text-align: left; background: #fffdf8; border: 1px dashed var(--green-2); border-radius: 14px; padding: 10px 14px; }
+  .focusline strong { font-size: 16px; }
+  .pick { display: block; width: 100%; text-align: left; min-height: 64px; border-radius: 16px; border: 1px solid var(--line);
+    background: var(--paper); padding: 12px 16px; }
+  .pick strong { display: block; font-size: 20px; }
+  .pick span { display: block; color: var(--muted); font-size: 15px; margin-top: 2px; }
+  .pick[aria-pressed="true"] { background: var(--green); color: #f7f1e4; border-color: var(--green); }
+  .pick[aria-pressed="true"] span { color: #dfeee4; }
+  .whatsnew { border: 2px solid var(--green); margin-bottom: 12px; }
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+  .drill { margin-bottom: 10px; }
+  .drill summary { display: block; padding-top: 4px; }
+  .drill[open] summary { margin-bottom: 8px; }
+  ol.steps { padding-left: 22px; margin: 8px 0 12px; }
+  ol.steps li { margin: 8px 0; font-size: 17px; }
+  .nudge { color: var(--green); font-weight: 600; }
+  .home-tip { margin-top: 12px; }
+  .chip.goal { border-radius: 14px; flex: 1 1 30%; line-height: 1.2; }
+  .chip.goal span { font-size: 12px; opacity: 0.85; }
+  .clubline { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .clubline:last-child { border-bottom: 0; }
+  .clubline .chip { min-width: 64px; flex: none; }
+  .clubline .ghost { min-height: 48px; padding: 8px 12px; }
+  .filebtn { display: flex; align-items: center; justify-content: center; min-height: 52px; border-radius: 14px; border: 1px solid var(--green);
+    color: var(--green); font-weight: 650; background: #fffdf8; margin: 8px 0; cursor: pointer; }
+  .filebtn input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .qrow { padding: 8px 0 10px; border-bottom: 1px solid var(--line); }
+  .qrow:last-child { border-bottom: 0; }
+  .fix { background: #fffdf8; border: 1px solid var(--line); border-left: 4px solid var(--green); border-radius: 0 12px 12px 0; padding: 10px 12px; margin: 8px 0; }
+  .fixhead { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .guide .ex { border-top: 1px solid var(--line); padding: 8px 0; }
+  .guide a { color: var(--green); font-weight: 600; }
+  .lastchecked { background: #f5ead2; border-radius: 10px; padding: 6px 10px; }
+  .guide a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; }
+.
+13c
+<!-- Simple Caddie v3 (2026-10-09). One offline file: no network requests, no
+.

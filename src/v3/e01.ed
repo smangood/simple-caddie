@@ -1,0 +1,72 @@
+3368,3370c
+  // v3: photos are shrunk (max 900px JPEG) so a few of them can't fill the phone's storage.
+  shrinkImage(file, cb, 900);
+.
+3339a
+  if (/^tu-/.test(t.id || "")) { captureTune(); save(); return; }
+  if (t.dataset.tunePhoto && t.files && t.files[0]) {
+    const id = t.dataset.tunePhoto; captureTune();
+    readImageFile(t.files[0], (url) => { if (!data.tuneup.photos) data.tuneup.photos = {}; data.tuneup.photos[id] = url; save(); render(); });
+    return;
+  }
+.
+3268a
+/* Tune-up inputs: keep typed numbers across re-renders. */
+function captureTune() {
+  if (!data.tuneup) data.tuneup = { answers: {}, photos: {} };
+  const v = id => { const el = document.getElementById(id); return el ? el.value.trim() : null; };
+  const h = v("tu-height"); if (h != null) data.golferHeightIn = h;
+  const w = v("tu-wrist"); if (w != null) data.tuneup.wristFloorIn = w;
+  const hand = v("tu-hand"); if (hand != null) data.tuneup.handIn = hand;
+  const l7 = v("tu-len7"); if (l7 != null) data.tuneup.len7 = l7;
+  const ld = v("tu-lendr"); if (ld != null) data.tuneup.lenDR = ld;
+  const pu = v("tu-putter"); if (pu != null) data.putterLengthIn = pu;
+}
+
+.
+3239c
+      data.clubs = data.clubs.filter(c => c.id !== t.dataset.id); save(); go(ui.clubeditBack || "mybag"); break;
+    // ---- v3 ----
+    case "whatsnew-ok": data.whatsNewSeen = "3.0"; save(); render(); break;
+    case "focus-toggle": {
+      const id = t.dataset.id; const f = data.focus || [];
+      data.focus = f.includes(id) ? f.filter(x => x !== id) : f.concat(id);
+      ui.learnTab = null; save(); render(); break;
+    }
+    case "focus-clear": data.focus = []; ui.learnTab = null; save(); render(); break;
+    case "go-athome": ui.athomeBack = t.dataset.back || "pro"; go("athome"); break;
+    case "home-done": {
+      data.homeDrillLog = [{ date: today(), id: t.dataset.id }].concat(data.homeDrillLog || []).slice(0, 200);
+      save(); ui.flash = "Logged. That's practice — it counts."; render(); break;
+    }
+    case "budget-rounds": data.budget = Object.assign({}, data.budget, { rounds: data.budget && data.budget.rounds === t.dataset.v ? "" : t.dataset.v }); save(); render(); break;
+    case "budget-goal": data.budget = Object.assign({}, data.budget, { goal: data.budget && data.budget.goal === t.dataset.v ? "" : t.dataset.v }); ui.guideTier = null; save(); render(); break;
+    case "guide-tier": ui.guideTier = t.dataset.v; render(); break;
+    case "tune-glove": captureTune(); data.tuneup.glove = data.tuneup.glove === t.dataset.v ? "" : t.dataset.v; save(); render(); break;
+    case "tune-ans": {
+      captureTune();
+      const a = data.tuneup.answers; a[t.dataset.qid] = a[t.dataset.qid] === t.dataset.v ? "" : t.dataset.v;
+      save(); render(); break;
+    }
+    case "tune-save": captureTune(); save(); ui.flash = "Measurements saved."; render(); break;
+.
+3235c
+      go(ui.clubeditBack || "mybag"); break;
+.
+3207c
+    case "open-wear": ui.wearClubId = t.dataset.id; ui.wearBack = t.dataset.back || "bag"; go("wear"); break;
+.
+3079c
+    if (t.dataset.go === "clubedit" && t.dataset.edit) { ui.myBagEditId = t.dataset.edit; ui.clubeditBack = ui.screen === "bag" ? "bag" : "mybag"; }
+    if (t.dataset.go === "focus") ui.focusBack = t.dataset.back || "home";
+.
+3046a
+  d.whatsNewSeen = "3.0";
+.
+2913c
+  friendBag, friendPick, friendCardText, putterLengthAdvice, APP_VERSION,
+  trendNudges, puttStats, orderedHomeDrills, tuneupFixes, gripSizeAdvice, budgetAdvice, CLUB_GUIDE, go };
+.
+2903c
+  learn, how, friend, focus, athome, cheatsheet
+.
