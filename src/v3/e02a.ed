@@ -1,0 +1,173 @@
+2883a
+/* ===================== v3: focus, at home, tune-up, budget, club guide ===================== */
+
+function focusList() { return (data.focus || []).map(id => FOCUS_AREAS.find(a => a.id === id)).filter(Boolean); }
+function focusSummary() {
+  const f = focusList();
+  return f.length ? f.map(a => a.label).join(" · ") : "Nothing picked yet";
+}
+function focusLine(back) {
+  return `<button class="focusline" data-go="focus" data-back="${back}"><span class="small">Helping with</span><strong>${esc(focusSummary())}</strong><span class="small">Change ›</span></button>`;
+}
+
+/* ---- Trend nudges: data -> one at-home drill, with the reason ---- */
+function puttStats() {
+  let putts = 0, holes = 0, threes = 0;
+  data.rounds.slice(0, 10).forEach(r => {
+    const hs = (r.holes || []).filter(h => Number(h.putts) > 0);
+    if (hs.length) {
+      hs.forEach(h => { putts += Number(h.putts); holes++; if (Number(h.putts) >= 3) threes++; });
+    } else if (Number(r.putts) > 0) {
+      putts += Number(r.putts); holes += Number(r.holesPlayed) || 18;
+    }
+  });
+  // today's card counts too, so the nudge shows up mid-trip
+  if (data.live && data.live.holes) data.live.holes.forEach(h => { if (Number(h.putts) > 0) { putts += Number(h.putts); holes++; if (Number(h.putts) >= 3) threes++; } });
+  return { per18: holes ? Math.round(putts / holes * 18) : null, holes, threes };
+}
+function trendNudges() {
+  const out = [];
+  const add = (id, why) => { if (!out.find(n => n.id === id)) out.push({ id, why }); };
+  const ps = puttStats();
+  if (ps.holes >= 6 && ps.per18 >= 36) add("carpet", "You're averaging about " + ps.per18 + " putts per 18" + (ps.threes ? " with " + ps.threes + " three-putts" : "") + ". Two putts a hole is 36 — carpet putting is the cheapest strokes you'll find.");
+  else if (ps.threes >= 3) add("carpet", ps.threes + " three-putts logged. Lag speed on the carpet fixes most of them.");
+  const t = trendStats();
+  const c = t.counts || {};
+  if (c.putting) add("carpet", "Putting went sideways in " + c.putting + " of your last rounds.");
+  const shortMiss = data.shots.slice(0, 60).filter(s => s.result === "missed" && ["52", "54", "56", "58", "SW", "AW", "PW"].includes(s.clubId) && Number(s.ask && s.ask.yards) > 0 && Number(s.ask.yards) <= 40).length;
+  if (c.chipping || shortMiss >= 2) add("basket", c.chipping ? "Chipping went sideways in " + c.chipping + " of your last rounds." : shortMiss + " short-game misses tapped lately.");
+  if (c.contact || c.air) add("mirror", "Contact came up in your rounds. Setup causes most thin and fat shots — check it in the mirror.");
+  const drMiss = data.shots.slice(0, 60).filter(s => s.clubId === "DR" && s.result === "missed").length;
+  if (c.driver || drMiss >= 2) add("mirror", "Driver misses logged. Tee height, ball position and posture in the mirror first.");
+  if (c.trouble) add("plan", "Trouble / lost balls came up. Plan the safe side at home.");
+  return out;
+}
+
+function orderedHomeDrills() {
+  const nudges = trendNudges();
+  const fromFocus = [];
+  focusList().forEach(a => (a.home || []).forEach(id => { if (!fromFocus.includes(id)) fromFocus.push(id); }));
+  const ids = [];
+  nudges.forEach(n => { if (!ids.includes(n.id)) ids.push(n.id); });
+  fromFocus.forEach(id => { if (!ids.includes(id)) ids.push(id); });
+  AT_HOME.forEach(d => { if (!ids.includes(d.id)) ids.push(d.id); });
+  return ids.map(id => ({ d: AT_HOME.find(x => x.id === id), why: (nudges.find(n => n.id === id) || {}).why || "", focus: fromFocus.includes(id) })).filter(x => x.d);
+}
+
+/* ---- Budget ---- */
+const ROUND_BUCKETS = [["2", "1–3"], ["6", "4–10"], ["15", "11–25"], ["30", "26+"]];
+const GOALS = [["save", "Save", "Used, regrip, or keep"], ["value", "Value", "Last year's model / pre-owned"], ["nolimit", "No limit", "Newest + a fitting"]];
+function goalOf() { return (data.budget && data.budget.goal) || ""; }
+function roundsOf() { return Number(data.budget && data.budget.rounds) || 0; }
+function budgetAdvice() {
+  const r = roundsOf(), g = goalOf();
+  if (!r && !g) return "Set rounds a year and a goal. Every club suggestion follows it.";
+  const lines = [];
+  if (r) {
+    const perRound = Math.round(250 / (r * 5));
+    if (r <= 3) lines.push("At about " + r + " rounds a year, a $250 club works out to about $" + perRound + " a round over 5 years. Regrip and keep first; buy one club at a time, used.");
+    else if (r <= 10) lines.push("At " + r + "-ish rounds a year, a $250 club is about $" + perRound + " a round over 5 years. Last year's model is the sweet spot.");
+    else if (r <= 25) lines.push("At " + r + "-ish rounds a year, a fitting starts to pay for itself. A $250 club is about $" + perRound + " a round over 5 years.");
+    else lines.push("At " + r + "+ rounds a year, a proper fitting is worth it. A $250 club is about $" + perRound + " a round over 5 years.");
+  }
+  if (g === "save") lines.push("Save: " + CLUB_GUIDE.where.save);
+  if (g === "value") lines.push("Value: " + CLUB_GUIDE.where.value);
+  if (g === "nolimit") lines.push("No limit: " + CLUB_GUIDE.where.nolimit + (r && r <= 3 ? " At your rounds a year, the fitting matters more than the model year." : ""));
+  return lines.join(" ");
+}
+function guideTypeFor(c) {
+  if (!c) return null;
+  return CLUB_GUIDE.types.find(t => t.ids.includes(c.id)) ||
+    CLUB_GUIDE.types.find(t => (c.kind === "wood" && t.id === "fairway") || (c.kind === "hybrid" && t.id === "hybrid") || (c.kind === "iron" && t.id === "irons") || (c.kind === "wedge" && t.id === "wedges") || (c.kind === "putter" && t.id === "putter") || (c.kind === "driver" && t.id === "driver"));
+}
+function guideExamples(type, tier) {
+  return (type && type[tier || goalOf() || "save"]) || [];
+}
+function shopLink(model, tier) {
+  const q = encodeURIComponent(model.replace(/\s*\(.*\)/, "") + (tier === "save" ? " used" : tier === "value" ? " pre-owned" : ""));
+  return tier === "save" ? "https://www.ebay.com/sch/i.html?_nkw=" + q : "https://www.google.com/search?q=" + q;
+}
+
+/* ---- Tune-up ---- */
+function gripSizeAdvice() {
+  const tu = data.tuneup || {};
+  const hand = Number(tu.handIn);
+  let size = "", why = "";
+  if (hand > 0) {
+    size = hand < 5 ? "Junior" : hand <= 6.5 ? "Undersize" : hand <= 7.5 ? "Standard" : hand <= 9 ? "Midsize" : "Jumbo";
+    why = "Hand " + hand + "\" wrist crease to middle fingertip";
+  } else if (tu.glove) {
+    size = { S: "Undersize", M: "Standard", ML: "Standard", L: "Midsize", XL: "Midsize", XXL: "Jumbo" }[tu.glove] || "";
+    why = "Glove " + ((GLOVE_SIZES.find(g => g[0] === tu.glove) || [])[1] || tu.glove);
+  }
+  return size ? { size, why } : null;
+}
+function staticFitNote() {
+  const h = Number(data.golferHeightIn), w = Number((data.tuneup || {}).wristFloorIn);
+  if (!h || !w) return "Add height and wrist-to-floor. Ping's color-code chart turns those two numbers into a starting length and lie.";
+  const std = h >= 68 && h <= 73 && w >= 33 && w <= 35.5;
+  return (std ? "Height " + h + "\" and wrist-to-floor " + w + "\" sit in the standard zone (Ping's chart example: 5'10\" with 34\" = standard length and lie). Standard clubs should fit; the sole and divot checks below confirm it."
+    : "Height " + h + "\" and wrist-to-floor " + w + "\" are outside the usual standard zone (Ping's chart: 5'10\" / 34\" = standard; 5'6\" / 32\" = 1° flat and ½\" short). Look up your dot on the chart before paying for shop work — and trust the sole/divot photos over the chart.");
+}
+function clubLengthNote() {
+  const tu = data.tuneup || {};
+  const h = Number(data.golferHeightIn), l7 = Number(tu.len7), ld = Number(tu.lenDR);
+  const out = [];
+  if (l7) {
+    let s = "7-iron " + l7 + "\" (a standard men's steel 7-iron is about 37\").";
+    if (h && h >= 74 && l7 <= 37) s += " You're tall — if you hunch over it, ½\" longer may help.";
+    else if (h && h <= 66 && l7 >= 37) s += " You're on the shorter side — if you choke down, it may be long.";
+    out.push(s);
+  }
+  if (ld) out.push("Driver " + ld + "\" (G425 Max standard is about 45.75\"). " + (ld > 46 ? "Longer than standard: harder to find the face. Grip down an inch first (free)." : "Fine."));
+  return out;
+}
+function tuneAns(id) { return ((data.tuneup || {}).answers || {})[id] || ""; }
+function tuneupFixes() {
+  const a = tuneAns;
+  const free = [], regrip = [], shop = [], replace = [];
+  const bagged = data.clubs.filter(c => c.inBag);
+  // free setup changes
+  if (a("arms") === "reach") free.push("You're reaching. Stand a half step closer so your arms hang straight down.");
+  if (a("arms") === "crowd") free.push("You're crowded. Back up a little — a fist and a half between hands and thighs.");
+  if (a("posture") === "hunch") free.push("Hunched: stand taller, bend from the hips, knees just soft.");
+  if (a("posture") === "tall") free.push("Very upright: bend more from the hips so the arms can hang.");
+  if (a("sole") === "toeup" || a("sole") === "heelup") free.push("Re-take the face-on photo after fixing posture — most lie problems at address are posture. Only if it's still off, see the shop list.");
+  if (a("chokedown") === "yes") free.push("Choking down is a free fix that works. Keep doing it until you decide on a cut.");
+  if (a("gripfit") === "dig" || a("gripfit") === "gap") free.push("Hold the grip in your fingers, not the palm, before blaming grip size.");
+  // regrip
+  const gs = gripSizeAdvice();
+  const worn = a("gripwear") === "shiny" || a("gripwear") === "cracked" || data.bagAnswers.grips === "yes";
+  const wornClubs = bagged.filter(c => (c.wear || {}).grip === "slick" || (c.wear || {}).grip === "cracked");
+  if (worn) regrip.push("Regrip the whole bag (" + bagged.length + " clubs × " + TUNEUP_COSTS.regrip + ", about $" + bagged.length * 8 + "–$" + bagged.length * 15 + "). For 2–3 rounds a year this beats any new club.");
+  else if (wornClubs.length) regrip.push("Regrip " + wornClubs.map(c => c.short).join(", ") + " (" + TUNEUP_COSTS.regrip + ").");
+  if (a("gripfit") === "dig") regrip.push("Grips feel small (fingers dig in). Next regrip: go one size up" + (gs ? " — your hand says " + gs.size : " (midsize)") + ".");
+  if (a("gripfit") === "gap") regrip.push("Grips feel big (fingers don't reach). Next regrip: one size down" + (gs ? " — your hand says " + gs.size : "") + ".");
+  if (gs && (worn || wornClubs.length) && !a("gripfit")) regrip.push("Size to ask for: " + gs.size + " (" + gs.why + ").");
+  // shop work
+  const lie = a("sole") === "toeup" || a("marks") === "heel" ? "flatter" : (a("sole") === "heelup" || a("marks") === "toe" ? "more upright" : "");
+  if (lie) shop.push("Lie angle: ask the shop to check and bend the irons " + lie + " (" + TUNEUP_COSTS.lie + "). " + (a("marks") === "toe" ? "Toe-side divots mean the lie is too flat." : a("marks") === "heel" ? "Heel-side divots mean the lie is too upright." : "Confirm with a face-tape or divot check first."));
+  if (a("chokedown") === "yes" && a("arms") !== "crowd") shop.push("Length: you choke down on most clubs — a shop can cut about ½\" (" + TUNEUP_COSTS.length + "). Cutting makes the grip feel different; regrip at the same time.");
+  if (a("posture") === "hunch" && a("chokedown") !== "yes" && Number(data.golferHeightIn) >= 74) shop.push("Length: tall and hunched — ask about ½\" longer (" + TUNEUP_COSTS.length + ").");
+  const pa = putterLengthAdvice();
+  if (pa && /too long/i.test(pa.title)) shop.push("Putter: " + pa.title + ". Have it cut (about $" + PRICE_GUIDE.putter_cut.low + "–$" + PRICE_GUIDE.putter_cut.high + ").");
+  // replace — only when wear/miss/range data earns it
+  bagged.filter(c => c.id !== "PU").forEach(c => {
+    const v = costVerdict(c);
+    if (!v.keep && !/regrip/i.test(v.title)) {
+      const t = guideTypeFor(c);
+      replace.push(c.name + ": " + v.why + (t ? " Look at a " + t.type.split(" (")[0].toLowerCase() + " in the Club guide." : ""));
+    }
+  });
+  return { free, regrip, shop, replace };
+}
+
+/* Shrink photos before saving so localStorage doesn't fill up. */
+function shrinkImage(file, cb, max) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const src = reader.result;
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const m = max || 900;
