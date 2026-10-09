@@ -1,0 +1,205 @@
+/* Head-check one-liners. The first eight come word-for-word from the very first
+   Simple Caddie ("Give me one thing. Then shut up."). */
+const ONE_THINGS = [
+  "Hit the ball. That is the whole assignment.",
+  "Take one more club and swing like you are late for nothing.",
+  "Stop aiming at a perfect shot. Aim at the middle of the clubface.",
+  "If you are thinking about your hands, look at the ball and start the club back.",
+  "A fairway with a hybrid beats a hero drive you have not hit in two months.",
+  "Get balanced. Then swing. The hill can wait until you are standing still.",
+  "You do not need a handicap to have a good hole. You need to hit this ball.",
+  "Closer to the ball if you feel yourself falling back. Then forget the rest.",
+  "Pick the club. Say the one sentence. Look at the ball. Swing.",
+  "Hold your finish for three seconds. That is the whole lesson.",
+  "Aim the clubface first, then your feet.",
+  "Count one going back, two coming through.",
+  "Middle of the green. Not the flag.",
+  "Bogey is a good score. Breathe."
+];
+
+/* Old "Head check" cards, kept for the Learn door. */
+const HEAD_CHECKS = [
+  { title: "Stop thinking about distance", text: "If you have not played in a month, the win is center face. A 7-iron that you hit beats a 5-iron you hope at. Take more club and swing easier." },
+  { title: "Hill, in one breath", text: "Uphill: more club, ball a touch back, stay on the slope. Downhill: less club, ball a touch forward, don't hang back. Sidehill: get balanced first. Contact before carry." },
+  { title: "Tilted toward the ball", text: "You are reaching. Stand a little taller, grip down an inch, and let the club come to the ball. Reaching is how you thin it." },
+  { title: "Tilted away from the ball", text: "Get closer. Bend from the hips until your arms hang. If you feel like you might fall backward, you are too far away to hit it." },
+  { title: "Get it in the air", text: "Ball in the middle. Weight a little on the front foot. The club brushes the grass after the ball, not before. If you scoop, take one more club and swing smoother." },
+  { title: "Straighter, for a rusty swing", text: "Aim the clubface, then your feet. Count one back, two through. Finish with your chest at the target. If two drives miss, put the driver away." },
+  { title: "When the head gets loud", text: "Pick the club. Say the one sentence the caddie gave you. Look at the ball. Swing. You are not playing a tournament. You are trying to hit this one." }
+];
+
+/* One line after Hit / Missed. */
+const REPLIES = {
+  hit: ["That counts. Same job next shot.", "Solid. Don't change a thing.", "That's the swing. Walk to it and forget it.", "Good. Same tempo next time."],
+  hitDriver: ["Fairway finder. Same easy swing next tee.", "Good drive. That's the tempo — keep it."],
+  hitShort: ["Nice touch. Same chip next time.", "That's the one. Use it everywhere."],
+  hitPutt: ["Good pace. That's the speed for today."],
+  missed: ["Missed is fine. Next one: closer to the ball, more club, easier swing.", "Shake it off. No new swing thoughts — same one sentence.", "One bad shot is one stroke. Next shot, middle of the green."],
+  missedDriver1: ["One drive missed. Next tee: same easy swing — or take the hybrid."],
+  missedDriver2: ["Two drives missed. Driver goes in the bag for today — hybrid off the tee."],
+  missedShort: ["Next chip: weight forward, hands ahead, brush the grass.", "Next one: putt it if you can, or the same bump with the 52."],
+  missedPutt: ["Pace first. Next putt, just get it close."]
+};
+
+/* Range: one line after each rep, plus the 3-thin rule. */
+const REP_TIPS = {
+  straight: ["Good. Same tempo. Do it again.", "That's the swing. Hold the finish so you remember it.", "Straight. Count it and keep the same easy swing."],
+  left: ["Left: the face shut or you pulled it. Lighter grip, let your chest turn through.", "Left: hands flipped. Same club, slower, hold the finish.", "Left: check the ball isn't too far forward."],
+  right: ["Right: face open. Check your grip — see two knuckles on your lead hand.", "Right: swing easier and finish with your chest at the target.", "Right: check your feet aren't aimed right of the target."],
+  thin: ["Thin: you rose up. Keep your chest over the ball and brush the grass after it.", "Thin: stay down — the club brushes the grass just past the ball.", "Thin: get a touch closer to the ball and keep your knees flexed."]
+};
+const THREE_THIN = "Three thin in a row. Stop hitting. Make five practice swings that brush the grass, move the ball back one inch, then hit three half swings with a 9-iron before you go back to this club.";
+
+/* After-round problems -> 20-minute home drill (no range needed). */
+const HOME_DRILLS = {
+  contact: { title: "Brush-the-grass drill (20 min, backyard)", steps: ["5 min: no ball. Half swings with an 8-iron; brush the grass on the same spot every time.", "10 min: put a tee in the ground where you brushed. Clip the tee, not the dirt behind it.", "5 min: feet together, half swings, hold the finish for 3 seconds."] },
+  driver: { title: "Driver tempo drill (20 min, at home)", steps: ["5 min: in a mirror, tee height and setup — ball off the lead heel, trail shoulder lower.", "10 min: slow swings at half speed, hold the finish 3 seconds. Count one back, two through.", "5 min: 10 swings with a towel tucked under both arms."] },
+  hills: { title: "Slope stance drill (20 min, yard slope)", steps: ["Find any slope in the yard or park.", "5 min each: ball above feet, below feet, uphill, downhill — set up, match shoulders to the slope, half swings.", "Last 5 min: same, but hold the finish. Balance first, then swing."] },
+  air: { title: "Coin drill (20 min, backyard)", steps: ["Put a coin 2 inches in front of where the ball would be.", "10 min: half swings with a 9-iron that brush the coin — weight on the front foot.", "10 min: same with a 7-iron. Let the loft lift the ball; never scoop."] },
+  chipping: { title: "Towel landing drill (20 min, lawn)", steps: ["Lay a towel 3 big steps away. That's your landing spot.", "10 min: bump with the 52, ball back, hands ahead — land it on the towel.", "10 min: same chip, move the towel. One chip, used everywhere."] },
+  putting: { title: "Carpet putting (20 min, living room)", steps: ["5 min: 3-foot putts into a cup or between two coins. Make 10 in a row.", "10 min: lag putts to a door line or the edge of a rug from 15–25 feet. Stop them within a putter length.", "5 min: eyes closed, 3-footers. Feel the same tempo back and through."] },
+  trouble: { title: "Kitchen-table course plan (20 min)", steps: ["Open your course on the Course screen.", "For each hole, write the safe side and the club you trust off the tee.", "Circle 3 holes where you'll lay up or punch out sideways. Decide now so you don't decide angry."] }
+};
+
+/* What went sideways (end of round). Keys must match HOME_DRILLS. */
+const SIDEWAYS_V2 = [
+  ["contact", "Hitting it solid"], ["driver", "Driver"], ["chipping", "Chipping"], ["putting", "Putting"],
+  ["hills", "Hills"], ["air", "Getting it airborne"], ["trouble", "Trouble / lost balls"]
+];
+
+/* Putter fit. Height chart is a starting point only (PGA TOUR Superstore
+   learning center "How to choose the right putter length"; f9golf.com putter
+   length guide): about 5'4"–5'8" -> 33–34", 5'8"–6'0" -> 34–34.5",
+   6'0"–6'4" -> 35–35.5". The posture check beats the chart. */
+const PUTTER_FIT = [
+  "Take your putting posture with arms hanging loose. The grip should meet your hands — no reaching, no crouching.",
+  "Your eyes should sit over the ball or just inside it.",
+  "Choking down an inch, or the end poking your belly? It's too long. A shop can cut it — don't buy a new one.",
+  "Grip slick, shiny, or cracked? Regrip it. A fatter grip quiets the wrists.",
+  "Rough chart: 5'4\"–5'8\" ≈ 33–34\", 5'8\"–6'0\" ≈ 34–34.5\", 6'0\"–6'4\" ≈ 35–35.5\"."
+];
+
+/* ---------------------------------------------------------------------------
+   How to hit it. Each card is meant to be read in ~20 seconds.
+   Based on:
+   - Bump-and-run: PGA.com "A Six-Step Guide to Master the Bump and Run Chip"
+     and "How to Hit the Bump and Run: 5 Keys"; GOLF.com "ditch the risky flop
+     shot and try a simple bump and run".
+   - Pitch / wedges: Dave Pelz clock system (Golf Digest "5 research-based tips
+     from a legendary short-game guru"; practical-golf.com awkward wedge shot).
+   - Irons/hybrids: PGA.com and Golf Digest iron/hybrid basics (ball first,
+     ball slightly forward of middle; hybrid a bit farther forward).
+   - Fairway woods: Golf Digest "Flush your fairway woods" (ball a couple of
+     inches inside the lead heel, wide takeaway, brush the turf).
+   - Driver: GOLF.com "What's the correct tee height for every club" (half the
+     ball above the crown); GOLF.com driver setup tips (ball off lead heel,
+     trail shoulder lower).
+   - Putter: PGA.com "The Best Putting Drills" (3-foot circle, tee-gate lag).
+   --------------------------------------------------------------------------- */
+const HOWTO = [
+  { id: "chip", title: "Chip · 30 yards and in", club: "52° (or PW / 9-iron for more roll)",
+    setup: "Narrow stance. Ball back of middle. Most weight on your front foot. Hands ahead. Choke down.",
+    swing: "Tiny — like a long putt. Knee high back, knee high through.",
+    feel: "Putt it with a wedge. Quiet wrists.",
+    miss: "Chunked it? You flipped your wrists. Keep hands ahead and brush the grass.",
+    svg: { stance: "narrow", ball: "back", back: 7.5, thru: 4.5, flight: "roll" }, yt: "bump and run chip beginner" },
+  { id: "pitch", title: "Pitch · 40–70 yards", club: "56° (or 52° for the longer ones)",
+    setup: "Slightly narrow stance. Ball in the middle. Chest over the ball, weight a touch forward.",
+    swing: "Half swing: lead arm to 9 o'clock, same size through.",
+    feel: "Turn your chest through — the arms just ride along.",
+    miss: "Fat or short? You slowed down. Finish at least as long as the backswing.",
+    svg: { stance: "medium", ball: "middle", back: 9, thru: 3, flight: "mid" }, yt: "pitch shot 9 o'clock half swing clock system" },
+  { id: "wedge", title: "Wedge · 70–100 yards", club: "PW, approach wedge, or 52°",
+    setup: "Normal stance. Ball in the middle. A little more weight on the front foot.",
+    swing: "Smooth three-quarter: hands to about 10 o'clock.",
+    feel: "Smooth three-quarter and hold the finish.",
+    miss: "Flew the green? Don't swing harder on the short club — take more club and choke down an inch.",
+    svg: { stance: "medium", ball: "middle", back: 10, thru: 2, flight: "mid" }, yt: "three quarter wedge shot 80 yards" },
+  { id: "iron", title: "Irons & hybrid · 100–200 yards", club: "8-iron down to the hybrid",
+    setup: "Shoulder-width stance. Ball one ball forward of middle (hybrid: two balls). Weight even, a touch forward.",
+    swing: "Full turn at 80% speed.",
+    feel: "Ball first, then the grass.",
+    miss: "Topped or thin? You stood up. Keep your chest over the ball. Fat? Weight forward, ball not too far up.",
+    svg: { stance: "wide", ball: "fwdmid", back: 11, thru: 1, flight: "mid" }, yt: "how to hit irons and hybrids ball first beginner" },
+  { id: "wood", title: "Woods off the ground", club: "5-wood (or hybrid if the lie is bad)",
+    setup: "Ball a couple of inches inside your front heel. Wide stance. Stand tall enough to see the ball.",
+    swing: "Wide, smooth takeaway. Full turn, easy speed.",
+    feel: "Brush the grass right where the ball sits. Let the loft lift it.",
+    miss: "Topped it? You tried to help it up. Keep your chest down through the ball — or take the hybrid.",
+    svg: { stance: "wide", ball: "heelin", back: 11.5, thru: 0.5, flight: "high" }, yt: "how to hit fairway woods off the ground sweep" },
+  { id: "driver", title: "Driver", club: "Driver (or hybrid off the tee if the driver is missing)",
+    setup: "Tee it so half the ball sits above the top of the driver. Ball off your front heel. Wide stance, back shoulder a bit lower.",
+    swing: "Full turn, 80% speed. Hold the finish.",
+    feel: "Swing up through the ball — smooth, not hard.",
+    miss: "Slicing? Grip so you see two or three knuckles, aim the clubface first, swing easier. Two misses: hybrid.",
+    svg: { stance: "wide", ball: "heel", back: 12, thru: 0, flight: "high", tee: true }, yt: "driver setup tee height beginner slice fix" },
+  { id: "putt", title: "Putter", club: "Putter",
+    setup: "Eyes over the ball. Arms hang loose. Light grip.",
+    swing: "Rock the shoulders. Longer putt = longer stroke, same rhythm.",
+    feel: "Same tempo back and through. Hold the finish until it stops.",
+    miss: "Way short or long? Look at the hole on your practice strokes. Pace beats line.",
+    svg: { stance: "narrow", ball: "fwdmid", back: 7, thru: 5, flight: "putt" }, yt: "putting basics lag putting drill beginner" }
+];
+
+/* Simplify the game. Short, opinionated, for golfers who rarely practice. */
+const SIMPLIFY = [
+  { t: "Skip the lob shot.", w: "You don't practice it. Bump or chip with a 52 instead." },
+  { t: "Putt from the fringe when you can.", w: "A bad putt beats a bad chip almost every time." },
+  { t: "Pick one chip and use it everywhere.", w: "Change the club for more roll, never the swing." },
+  { t: "Aim at the middle of the green.", w: "Every time. The flag is a trap." },
+  { t: "Take the trouble out: punch out sideways.", w: "One shot lost beats three." },
+  { t: "Tee it with the club you trust, not driver by default.", w: "Hybrid in the fairway beats driver in the trees." },
+  { t: "One swing thought max.", w: "Pick it in the cart, not over the ball." },
+  { t: "Bogey is a good score.", w: "Double is fine. Write it down and move on." },
+  { t: "Take one more club and swing easy.", w: "Almost everyone comes up short." },
+  { t: "In a bunker, just get it out.", w: "Anywhere on grass counts as a win." },
+  { t: "Lay up to a number you like.", w: "80 or 100 yards you know beats 40 yards you don't." },
+  { t: "Miss on the fat side.", w: "Away from water, bunkers, and the short side of the pin." },
+  { t: "Two drives missed? Driver goes away.", w: "Hybrid off the tee for the rest of the day." },
+  { t: "Play the tees that fit.", w: "If you can't reach most par 4s in two, move up. Shorter is more fun." },
+  { t: "Warm up with a wedge, not the driver.", w: "Five easy wedge swings, then the 8-iron, then hybrid." },
+  { t: "Three-footers: pick a spot and don't peek.", w: "Hold the finish until you hear it drop." }
+];
+
+const FRIEND_KEY = "simple-caddie-friends-v1";
+const PRE_UPGRADE_KEY = "simple-caddie-v1-before-v2";
+const LEGACY_KEYS = [KEY, "simpleCaddie_v1", "simplecaddie-bag", "simplecaddie-log"];
+const APP_VERSION = "2.0 · 2026-10-09";
+
+function freshClub(c) {
+  return Object.assign({}, c, {
+    todayYards: null, wear: {}, wearPhotos: {}, photo: "",
+    searchModel: c.searchModel || c.name, rangeYardList: [], rangeYards: null,
+    keeper: !!c.keeper
+  });
+}
+function presetCourse(p) {
+  return {
+    id: p.id, name: p.name, place: p.place || "", notes: p.notes || "",
+    greens: Object.assign({}, p.greens), holes: [], holeEdits: {},
+    tee: DEFAULT_TEE[p.id] || "", source: p.source || "", preset: true
+  };
+}
+function empty() {
+  return {
+    v: 2,
+    clubs: DEFAULT_CLUBS.map(freshClub),
+    courses: COURSE_PRESETS.map(presetCourse),
+    activeCourseId: "",
+    shots: [], rounds: [], rangeSessions: [], notes: [],
+    live: null, driverUnbench: null,
+    phoneDay: null, lastRead: null, bagAnswers: {}, bagPhoto: "",
+    putterLengthIn: "", golferHeightIn: "",
+    todayCheck: { ironId: "7I", ironToday: "", woodId: "HY", woodToday: "", ironOffset: 0, woodOffset: 0, message: "", date: "" },
+    seenIntro: false
+  };
+}
+
+/* True if this phone already has any Simple Caddie data (Jeff's phone). */
+function hasExistingData() {
+  try {
+    return LEGACY_KEYS.some(k => localStorage.getItem(k) != null);
+  } catch (e) { return false; }
+}
+
+function medianOf(list) {
