@@ -1,0 +1,387 @@
+  if (!list || !list.length) return null;
+  const s = list.slice().sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
+}
+
+function load() {
+  let raw = null;
+  try { raw = localStorage.getItem(KEY); } catch (e) { return empty(); }
+  if (!raw) return empty();
+  try {
+    const parsed = JSON.parse(raw);
+    // One-time copy of the pre-upgrade data, so nothing can be lost.
+    if (parsed.v !== 2) {
+      try { if (!localStorage.getItem(PRE_UPGRADE_KEY)) localStorage.setItem(PRE_UPGRADE_KEY, raw); } catch (e) { /* storage full: skip copy */ }
+    }
+    return migrate(parsed);
+  } catch (e) {
+    try { if (!localStorage.getItem(KEY + "-unreadable")) localStorage.setItem(KEY + "-unreadable", raw); } catch (e2) {}
+    return empty();
+  }
+}
+
+function migrate(parsed) {
+  const base = empty();
+  const oldClubs = parsed.clubs || [];
+  base.clubs = DEFAULT_CLUBS.map(def => {
+    const found = oldClubs.find(c => c.id === def.id);
+    return found ? Object.assign({}, freshClub(def), found) : freshClub(def);
+  });
+  // keep custom clubs (older builds dropped them on reload)
+  oldClubs.forEach(c => { if (!DEFAULT_CLUBS.find(d => d.id === c.id)) base.clubs.push(Object.assign(freshClub(c), c)); });
+  base.clubs.forEach(c => {
+    if (c.source === "hand") c.source = "mine";
+    if (c.source === "estimate") { c.source = "guess"; c.est = true; }
+    if (!c.source) c.source = "guess";
+    if (!Array.isArray(c.rangeYardList)) c.rangeYardList = [];
+    if (c.rangeYards == null && c.rangeYardList.length) c.rangeYards = medianOf(c.rangeYardList.slice(-10));
+    if (parsed.v !== 2 && c.keeper == null) c.keeper = c.id === "DR";
+  });
+
+  const byId = {};
+  (parsed.courses || []).forEach(c => { byId[c.id] = c; });
+  base.courses = COURSE_PRESETS.map(p => {
+    const u = byId[p.id];
+    const pc = presetCourse(p);
+    if (!u) return pc;
+    const merged = Object.assign(pc, u, { greens: Object.assign({}, p.greens, u.greens || {}), preset: true });
+    if (!merged.holeEdits) merged.holeEdits = {};
+    if (!merged.tee || !(SCORECARDS[p.id] && SCORECARDS[p.id].tees[merged.tee])) merged.tee = DEFAULT_TEE[p.id] || "";
+    // old builds stored typed hole yards in holes[]; keep them as edits
+    (u.holes || []).forEach(h => {
+      const y = String(h.yards == null ? "" : h.yards).trim();
+      const n = String(h.notes || "").trim();
+      if (y || n) merged.holeEdits[h.n] = Object.assign({}, merged.holeEdits[h.n] || {}, y ? { yards: y, par: h.par } : {}, n ? { notes: n } : {});
+    });
+    if ((u.holes || []).length) merged.legacyHoles = u.holes;
+    merged.holes = [];
+    return merged;
+  });
+  (parsed.courses || []).forEach(c => {
+    if (!COURSE_PRESETS.find(p => p.id === c.id)) base.courses.push(Object.assign({ holes: [], holeEdits: {}, greens: { speed: "medium", firm: "medium", slope: "some", size: "medium" } }, c, { preset: false }));
+  });
+
+  base.activeCourseId = parsed.activeCourseId || "";
+  base.shots = (parsed.shots || []).map(s => Object.assign({ ts: 0 }, s));
+  base.rounds = (parsed.rounds || []).map(r => Object.assign({ ts: 0 }, r));
+  base.rangeSessions = parsed.rangeSessions || [];
+  base.notes = parsed.notes || [];
+  base.live = parsed.live || null;
+  base.driverUnbench = parsed.driverUnbench || null;
+  base.phoneDay = parsed.phoneDay || null;
+  base.lastRead = parsed.lastRead || null;
+  base.bagAnswers = parsed.bagAnswers || {};
+  base.bagPhoto = parsed.bagPhoto || "";
+  base.putterLengthIn = parsed.putterLengthIn || "";
+  base.golferHeightIn = parsed.golferHeightIn || "";
+  base.todayCheck = Object.assign({}, base.todayCheck, parsed.todayCheck || {});
+  base.seenIntro = !!parsed.seenIntro;
+  base.v = 2;
+  return base;
+}
+
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(data)); }
+  catch (e) { alert("This phone's storage is full. Remove a bag photo or copy a backup."); }
+}
+
+/* Help-a-friend storage: kept apart from your own data. */
+function loadFriends() {
+  try { return Object.assign({ friends: [], activeId: "" }, JSON.parse(localStorage.getItem(FRIEND_KEY) || "{}")); }
+  catch (e) { return { friends: [], activeId: "" }; }
+}
+function saveFriends() { try { localStorage.setItem(FRIEND_KEY, JSON.stringify(friends)); } catch (e) {} }
+
+const EXISTING_AT_START = hasExistingData();
+let data = load();
+let friends = loadFriends();
+let ui = {
+  screen: EXISTING_AT_START ? (data.seenIntro ? "home" : "intro") : "fresh",
+  fresh: { step: 0, clubs: null, clubId: "7I", carry: "", never: false, courses: null, newCourse: "" },
+  ask: { yards: "", mode: "", lie: "fairway", hill: "flat", tilt: "level", courseId: "", hole: "", mustCarry: false, situation: "" },
+  read: null, reply: null, oneThing: null,
+  rangeStep: 0, rangeCounts: null, rangeClubs: null, rangeYards: "", repTip: "", thinRun: 0,
+  courseEdit: null,
+  round: { score: "", courseId: "", sideways: [], note: "" },
+  bagPanel: "main", chipView: "bump", wearClubId: null, myBagEditId: null,
+  howId: "chip", learnTab: "how", flash: "", quick: { clubId: "7I", carry: "" },
+  friend: { yards: "", mode: "", pick: null }
+};
+function today() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+function phoneHoles() {
+  if (!data.phoneDay || data.phoneDay.date !== today()) return 0;
+  return data.phoneDay.n || 0;
+}
+function bumpPhone() {
+  data.phoneDay = { date: today(), n: phoneHoles() + 1 };
+  save();
+}
+function clubById(id) { return data.clubs.find(c => c.id === id); }
+function sourceLabel(c) {
+  if (c.source === "range") return "range";
+  if (c.source === "mine" || c.source === "hand") return "mine";
+  return "guess";
+}
+function proven(c) {
+  return (c.straights || 0) > 0 || (c.hits || 0) > 0 || c.source === "range" || c.source === "mine";
+}
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
+function activeCourse() {
+  const id = ui.ask.courseId || data.activeCourseId;
+  return data.courses.find(c => c.id === id) || null;
+}
+
+function teeFor(id, lie) {
+  if (lie !== "tee") return "No tee";
+  if (id === "DR") return "Tee";
+  if (id === "5W" || id === "HY") return "Low tee";
+  return "No tee";
+}
+
+function oneSentence(lead, input) {
+  const extra = [];
+  if (input.tilt === "away") extra.push("get closer to the ball");
+  if (input.tilt === "toward") extra.push("stand taller and grip down");
+  if (input.tilt === "left") extra.push("left side is low, so set your feet and do not chase it");
+  if (input.tilt === "right") extra.push("right side is low, so set your feet and do not chase it");
+  let s = String(lead).replace(/\.$/, "");
+  if (extra.length) s += ", and " + extra.join(", and ");
+  if (!/[.!?]$/.test(s)) s += ".";
+  return s;
+}
+
+function forgivingPick(playable) {
+  const prefs = ["8I", "7I", "HY", "9I", "PW", "52", "56", "5W", "6I"];
+  const map = Object.fromEntries(playable.map(c => [c.id, c]));
+  const hit = prefs.map(id => map[id]).filter(c => c && c.forgiving && proven(c));
+  if (hit.length) {
+    hit.sort((a, b) => trustOf(b).score - trustOf(a).score || (b.hits || 0) - (a.hits || 0));
+    return hit[0];
+  }
+  return map["8I"] || map["HY"] || map["7I"] || playable[0];
+}
+
+function greenLine(course, lofted) {
+  const g = (course && course.greens) || { speed: "medium", firm: "medium", slope: "some", size: "medium" };
+  const firm = g.firm === "firm" || g.firm === "medium" && g.speed === "fast";
+  const flatish = g.slope === "flat" || g.slope === "some";
+  const softSloped = g.firm === "soft" || g.slope === "lots" || g.size === "small";
+  if (lofted) {
+    if (softSloped) return "Chip with a bit more height with the 56 here. Land it a step on the green and let it stop.";
+    return "Loft it with the 56 — land soft and let it sit.";
+  }
+  if ((g.firm === "firm" || g.speed === "fast") && flatish) {
+    return "Just do a little roll-up with the 52; these greens don't move much.";
+  }
+  if (g.slope === "lots") return "Bump-and-run with the 52, but start it on a quiet line — these greens break.";
+  if (g.size === "small") return "Roll it with the 52 and leave yourself an uphill putt on this small green.";
+  return "Bump-and-run with the 52. Land it short of the hole and let it roll.";
+}
+
+function shortGameRecommend(input, map, playable) {
+  const need = Number(input.yards);
+  const mustCarry = !!input.mustCarry;
+  const course = activeCourse();
+  const has52 = map["52"];
+  const has56 = map["56"];
+  const loftClub = has56 || map["SW"] || map["58"] || map["54"] || map["PW"] || playable[0];
+  const rollClub = has52 || map["AW"] || map["PW"] || map["9I"] || loftClub;
+
+  // Default: roll/bump inside 30 unless must carry
+  const lofted = mustCarry || input.lie === "bunker" || input.situation === "bunker" || input.situation === "deeprough";
+  const c = lofted ? loftClub : rollClub;
+  const style = lofted ? "loft" : "bump";
+  let lead;
+  if (mustCarry) lead = greenLine(course, true).replace(/\.$/, "") + " — must carry the trouble";
+  else if (input.lie === "bunker" || input.situation === "bunker") lead = (c.short || c.name) + " from the sand — open the face a touch, hit sand behind the ball, get it out";
+  else lead = greenLine(course, lofted).replace(/\.$/, "");
+
+  if (input.hill === "up") lead += "; uphill, easy swing";
+  if (input.hill === "down") lead += "; downhill, less force";
+
+  return {
+    clubId: c.id,
+    club: c.name,
+    tee: "No tee",
+    sentence: oneSentence(lead, input),
+    note: (c.source === "guess" ? "guess until the range" : sourceLabel(c) + " · " + c.yards) + " · " + style,
+    chip: style,
+    diagram: style
+  };
+}
+
+function situationRecommend(input, map, playable, order) {
+  const sit = input.situation;
+  if (!sit) return null;
+
+  if (sit === "punch") {
+    const c = map["7I"] || map["6I"] || map["8I"] || playable[0];
+    return {
+      clubId: c.id, club: c.name, tee: "No tee",
+      sentence: oneSentence("Low punch with the " + (c.short || c.name) + " — ball back, hands ahead, back to the fairway, not at the pin", input),
+      note: "punch-out"
+    };
+  }
+  if (sit === "tree") {
+    const c = map["8I"] || map["7I"] || map["HY"] || playable[0];
+    return {
+      clubId: c.id, club: c.name, tee: "No tee",
+      sentence: oneSentence("Tree trouble — " + (c.short || c.name) + ", easy, sideways or back to short grass. Hero shots stay in the trees", input),
+      note: "tree"
+    };
+  }
+  if (sit === "deeprough") {
+    const c = map["56"] || map["SW"] || map["HY"] || map["PW"] || playable[0];
+    return {
+      clubId: c.id, club: c.name, tee: "No tee",
+      sentence: oneSentence("Deep rough — " + (c.short || c.name) + ", steep and easy, just advance it. Do not try to hit it far", input),
+      note: "deep rough"
+    };
+  }
+  if (sit === "bunker") {
+    const c = map["56"] || map["SW"] || map["52"] || playable[0];
+    return {
+      clubId: c.id, club: c.name, tee: "No tee",
+      sentence: oneSentence((c.short || c.name) + " — open face, hit the sand first, get it out", input),
+      note: "bunker"
+    };
+  }
+  if (sit === "above") {
+    // ball above feet -> hooks; take less club feel / aim right; often shorter club
+    let base = pickByYards(input, map, order);
+    return {
+      clubId: base.id, club: base.name, tee: teeFor(base.id, input.lie),
+      sentence: oneSentence("Ball above your feet — choke down, aim a touch right, easier swing with the " + (base.short || base.name), input),
+      note: "above feet"
+    };
+  }
+  if (sit === "below") {
+    let base = pickByYards(input, map, order);
+    // often one more club
+    const idx = order.indexOf(base.id);
+    const more = order[clamp(idx + 1, 0, order.length - 1)];
+    const c = map[more] || base;
+    return {
+      clubId: c.id, club: c.name, tee: teeFor(c.id, input.lie),
+      sentence: oneSentence("Ball below your feet — bend more, stay down, one more club with the " + (c.short || c.name), input),
+      note: "below feet"
+    };
+  }
+  if (sit === "sidehill" || sit === "bincline") {
+    let base = pickByYards(input, map, order);
+    const more = input.hill === "up" || sit === "bincline";
+    let idx = order.indexOf(base.id);
+    if (more) idx = clamp(idx + 1, 0, order.length - 1);
+    if (input.hill === "down") idx = clamp(idx - 1, 0, order.length - 1);
+    const c = map[order[idx]] || base;
+    return {
+      clubId: c.id, club: c.name, tee: teeFor(c.id, input.lie),
+      sentence: oneSentence("Hard hill — match shoulders to the slope, " + (c.short || c.name) + ", easy swing. Goal is contact, not distance", input),
+      note: "hard hill"
+    };
+  }
+  if (sit === "roll") {
+    const fake = Object.assign({}, input, { yards: input.yards || "20", mustCarry: false });
+    return shortGameRecommend(fake, map, playable);
+  }
+  if (sit === "loft") {
+    const fake = Object.assign({}, input, { yards: input.yards || "20", mustCarry: true });
+    return shortGameRecommend(fake, map, playable);
+  }
+  return null;
+}
+
+function pickByYards(input, map, order) {
+  const unknown = input.mode === "unknown" || input.yards === "" || input.yards == null;
+  if (unknown) return forgivingPick(order.map(id => map[id]).filter(Boolean));
+  const need = Number(input.yards);
+  let idx = order.length - 1;
+  for (let i = 0; i < order.length; i++) {
+    if (map[order[i]] && map[order[i]].yards + 5 >= need) { idx = i; break; }
+  }
+  return map[order[idx]] || forgivingPick(order.map(id => map[id]).filter(Boolean));
+}
+
+
+function lastRangeDate() {
+  if (data.rangeSessions && data.rangeSessions[0]) return data.rangeSessions[0].date;
+  return null;
+}
+
+function hasRangeBaseline() {
+  return data.clubs.some(c => c.source === "range" || (c.rangeYardList && c.rangeYardList.length));
+}
+
+function rangeBannerHtml() {
+  const d = lastRangeDate();
+  if (hasRangeBaseline() && d) {
+    return `<div class="banner">Using your range distances from ${esc(d)}</div>`;
+  }
+  return `<div class="banner guess">Using guesses — do a range session</div>`;
+}
+
+function clubAvgRange(c) {
+  const list = (c.rangeYardList || []).slice();
+  if (list.length) {
+    return Math.round(list.reduce((a, b) => a + b, 0) / list.length);
+  }
+  return c.yards;
+}
+
+function clubSpread(c) {
+  const list = (c.rangeYardList || []).slice();
+  if (list.length < 2) return 0;
+  return Math.max(...list) - Math.min(...list);
+}
+
+function missRate(c) {
+  const h = c.hits || 0, m = c.misses || 0;
+  const t = h + m;
+  if (!t) return 0;
+  return m / t;
+}
+
+function wearFlags(c) {
+  const w = c.wear || {};
+  const flags = [];
+  if (w.grooves === "rounded" || w.grooves === "rusty") flags.push("grooves");
+  if (w.face === "damage") flags.push("face");
+  if (w.sole === "dings" || w.sole === "worn") flags.push("sole");
+  if (w.grip === "slick" || w.grip === "cracked") flags.push("grip");
+  if (w.shaft === "rust" || w.shaft === "dent") flags.push("shaft");
+  return flags;
+}
+
+function priceForClub(c) {
+  if (c.id === "DR") return PRICE_GUIDE.driver_g425;
+  if (c.id === "5W") return PRICE_GUIDE.wood_g425_5;
+  if (c.kind === "hybrid") return PRICE_GUIDE.hybrid;
+  if (c.kind === "wedge") return PRICE_GUIDE.wedge;
+  if (c.kind === "iron") return PRICE_GUIDE.irons_cavity;
+  return PRICE_GUIDE.grips;
+}
+
+function costVerdict(c) {
+  const price = priceForClub(c);
+  const cost = price ? price.typical : 100;
+  const flags = wearFlags(c);
+  const spread = clubSpread(c);
+  const miss = missRate(c);
+  const needsChange = flags.includes("grip") || flags.includes("shaft") || flags.includes("face")
+    || (miss >= 0.55 && (c.hits || 0) + (c.misses || 0) >= 6)
+    || (spread >= 25 && (c.rangeYardList || []).length >= 4);
+
+  if (c.keeper) {
+    return {
+      keep: true,
+      title: "Keeper, not a problem area",
+      why: "G425 driver is the gapping anchor. Consistency here beats a shiny new head.",
+      cost: cost,
