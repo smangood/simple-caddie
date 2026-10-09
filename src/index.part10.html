@@ -1,0 +1,243 @@
+      <div class="card" style="flex:1"><div class="small">Left</div><div class="count">${counts.left}</div></div>
+      <div class="card" style="flex:1"><div class="small">Right</div><div class="count">${counts.right}</div></div>
+      <div class="card" style="flex:1"><div class="small">Thin</div><div class="count">${counts.thin}</div></div>
+    </div>
+    ${thin3 ? `<div class="reply warnline"><strong>Stop.</strong> ${esc(THREE_THIN)}</div>` : (ui.repTip ? `<div class="reply">${esc(ui.repTip)}</div>` : "")}
+    <label class="field">Yards on a straight one (from the range sign or rangefinder)</label>
+    <input id="range-yards" inputmode="numeric" value="${esc(ui.rangeYards)}" placeholder="Optional">
+    <div class="split" style="margin-top:10px">
+      <button class="hit" data-act="rep" data-rep="straight">Straight</button>
+      <button class="ghost" data-act="rep" data-rep="left">Left</button>
+      <button class="ghost" data-act="rep" data-rep="right">Right</button>
+      <button class="ghost" data-act="rep" data-rep="thin">Thin</button>
+    </div>
+    <button class="btn wide" style="margin-top:12px" data-act="next-club">${ui.rangeStep === ui.rangeClubs.length - 1 ? "Finish session" : "Next club"}</button>
+    <label class="field">Hit a different club now</label>
+    <select id="range-switch">${switchOpts}</select>
+    <button class="ghost wide" style="margin-top:8px" data-go="miss">Miss cues</button>
+  `;
+}
+
+function rangenums() {
+  const rows = data.clubs.filter(c => c.inBag && c.id !== "PU").map(c => `
+    <div class="card" style="margin-bottom:8px">
+      <div class="row" style="justify-content:space-between;align-items:center"><strong>${esc(c.name)}</strong><span>${c.yards} yds ${srcBadge(c)}</span></div>
+      ${c.rangeYards ? `<p class="small" style="margin:6px 0">Range says <strong>${c.rangeYards}</strong> (${(c.rangeYardList || []).length} straight shots${c.rangeDate ? ", " + esc(c.rangeDate) : ""}).</p>` : `<p class="small" style="margin:6px 0">No range number yet.</p>`}
+      ${c.rangeYards && c.source === "mine" && c.rangeYards !== c.yards ? `<button class="btn wide" data-act="use-range" data-id="${c.id}">Use range number (${c.rangeYards})</button>` : ""}
+      <label class="field">Add straight shots (e.g. 148, 152, 150)</label>
+      <div class="split"><input data-rn="${c.id}" inputmode="numeric" placeholder="yards, yards…"><button class="ghost" data-act="save-rangenum" data-id="${c.id}">Add</button></div>
+    </div>`).join("");
+  return `
+    ${topBar("Range numbers", "pro")}
+    <h2>Range numbers · any club.</h2>
+    <p class="muted">Straight shots only. Range numbers replace guesses. If you typed your own number (mine), it stays until you tap "Use range number".</p>
+    ${rows}
+  `;
+}
+
+function mybag() {
+  const bagged = data.clubs.filter(c => c.inBag && c.id !== "PU");
+  const maxY = Math.max(1, ...bagged.map(c => c.yards));
+  const chart = bagged.map(c => `<div class="chart-row">
+      <div><strong>${esc(c.short)}</strong></div>
+      <div class="chart-bar-wrap"><div class="chart-bar ${sourceLabel(c) === "guess" ? "guess-bar" : ""}" style="width:${Math.round(c.yards / maxY * 100)}%"></div></div>
+      <div style="text-align:right;font-weight:700">${c.yards}</div>
+    </div>`).join("");
+  const list = bagged.map(c => `
+    <button class="situ" data-go="clubedit" data-edit="${c.id}">
+      <strong>${esc(c.name)} · ${c.yards} yds ${srcBadge(c)}</strong>
+      <span>${c.rangePending ? "Range says " + c.rangeYards + " — tap to choose" : (sourceLabel(c) === "guess" ? "Tap to type your own number" : (c.rangeYards ? "Range: " + c.rangeYards : "Tap to change"))}</span>
+    </button>`).join("");
+  const q = ui.quick;
+  const qOpts = bagged.filter(c => GAP_RATIO[c.id]).map(c => `<option value="${c.id}" ${q.clubId === c.id ? "selected" : ""}>${esc(c.name)}</option>`).join("");
+  return `
+    ${topBar("My distances", "home")}
+    ${flashHtml()}
+    <h2>My distances.</h2>
+    <p class="muted"><span class="src guess">guess</span> estimated · <span class="src mine">mine</span> you typed it · <span class="src range">range</span> from straight range shots. Mine and range beat guesses.</p>
+    <div class="card">
+      <strong>Quick start from one club</strong>
+      <p class="small">Know one club? We'll guess the rest from public amateur averages. Only changes clubs still marked guess.</p>
+      <div class="split"><select id="q-club">${qOpts}</select><input id="q-carry" inputmode="numeric" placeholder="yards" value="${esc(q.carry)}"></div>
+      <button class="btn wide" style="margin-top:8px" data-act="quick-start">Guess the rest</button>
+    </div>
+    <h3>Chart</h3>
+    <div class="card"><div class="chart">${chart || '<p class="small">No clubs in the bag.</p>'}</div></div>
+    <h3>Clubs</h3>
+    ${list}
+    <div class="stack" style="margin-top:8px">
+      <button class="ghost wide" data-go="rangenums">Range numbers · any club</button>
+      <button class="ghost wide" data-act="add-custom-club">Add a custom club</button>
+      <button class="ghost wide" data-go="bag">Edit bag · cost saver</button>
+    </div>
+    <details><summary>Bag photo</summary>
+      <div class="card" style="margin-top:8px">
+        <input type="file" accept="image/*" capture="environment" id="bag-photo-input">
+        ${data.bagPhoto ? `<img class="thumb" src="${data.bagPhoto}" alt="Bag">` : `<p class="small">No bag photo yet. Stays on this phone.</p>`}
+      </div>
+    </details>
+  `;
+}
+
+function clubedit() {
+  const c = clubById(ui.myBagEditId);
+  if (!c) return mybag();
+  const t = trustOf(c);
+  return `
+    ${topBar("Club", "mybag")}
+    <h2>${esc(c.name)} ${srcBadge(c)}</h2>
+    <div class="card">
+      <label class="field" style="margin-top:0">My number (yards)</label>
+      <input id="ce-yards" inputmode="numeric" value="${c.yards}" style="font-size:28px;font-weight:700">
+      <p class="small" style="margin-top:6px">Saving marks it <span class="src mine">mine</span>. It beats guesses. Range numbers only replace it if you tap the button below.</p>
+      ${c.rangeYards ? `<p class="small">Range says <strong>${c.rangeYards}</strong> from ${(c.rangeYardList || []).length} straight shots.</p>
+        ${c.yards !== c.rangeYards ? `<button class="btn wide" data-act="use-range" data-id="${c.id}">Use range number (${c.rangeYards})</button>` : ""}` : ""}
+      <p class="small">Trust: ${t.n ? Math.round(t.score * 100) + "% hit from " + t.n + " taps" : "no taps yet"}.</p>
+    </div>
+    <label class="field">Name</label>
+    <input id="ce-name" value="${esc(c.name)}">
+    <label class="field">Short label</label>
+    <input id="ce-short" value="${esc(c.short)}">
+    <label class="field">Search model (used listings)</label>
+    <input id="ce-model" value="${esc(c.searchModel || "")}">
+    <button class="btn wide" style="margin-top:12px" data-act="save-clubedit">Save club</button>
+    <details><summary>Photo, wear, used listings</summary>
+      ${c.photo ? `<img class="thumb" src="${c.photo}" alt="">` : ""}
+      <label class="field">Club photo</label>
+      <input type="file" accept="image/*" capture="environment" data-club-photo="${c.id}">
+      <div class="row" style="margin-top:8px">${searchLinksFor(c).map(l =>
+        `<a class="chip" style="text-decoration:none;text-align:center;line-height:48px" href="${l.href}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join("")}</div>
+      <button class="ghost wide" style="margin-top:8px" data-act="open-wear" data-id="${c.id}">Wear checklist</button>
+    </details>
+    ${c.id.startsWith("X") ? `<button class="danger wide" style="margin-top:12px" data-act="delete-club" data-id="${c.id}">Remove custom club</button>` : ""}
+  `;
+}
+
+function bagPutter() {
+  const advice = putterLengthAdvice();
+  return `${topBar("Putter fit", "bag")}
+    <h2>Cut it, regrip it, or keep it?</h2>
+    <ul class="plain">${PUTTER_FIT.map(l => `<li>${esc(l)}</li>`).join("")}</ul>
+    <label class="field">Putter length (inches, floor to end of grip)</label>
+    <input id="putter-len" inputmode="decimal" value="${esc(data.putterLengthIn)}" placeholder="e.g. 35">
+    <label class="field">Your height (inches)</label>
+    <input id="golfer-h" inputmode="decimal" value="${esc(data.golferHeightIn)}" placeholder="e.g. 70">
+    <button class="btn wide" style="margin-top:12px" data-act="save-putter">Check it</button>
+    ${advice ? `<div class="verdict" style="margin-top:12px"><strong>${esc(advice.title)}</strong><p class="small">${esc(advice.body)}</p></div>` : ""}
+    <button class="ghost wide" style="margin-top:8px" data-act="speak-text" data-text="${esc(PUTTER_FIT.slice(0, 4).join(" "))}">Read it to me</button>
+    <button class="ghost wide" style="margin-top:8px" data-act="bag-panel" data-panel="main">Back to bag</button>`;
+}
+
+/* ---- Learn ---- */
+const CLOCK = h => { const a = (h % 12) / 12 * Math.PI * 2; return [Math.sin(a), -Math.cos(a)]; };
+function howSvg(o) {
+  const gap = o.stance === "narrow" ? 26 : o.stance === "medium" ? 40 : 56;
+  const cx = 95, footY = 92;
+  const ballX = { back: cx - gap * 0.35, middle: cx, fwdmid: cx + gap * 0.25, heelin: cx + gap * 0.55, heel: cx + gap * 0.75 }[o.ball] || cx;
+  const r = 44, ox = 270, oy = 76;
+  const [bx, by] = CLOCK(o.back);
+  const [tx, ty] = CLOCK(o.thru);
+  const largeB = Math.abs(o.back - 6) > 6 ? 1 : 0;
+  const largeT = Math.abs(6 - o.thru) > 6 ? 1 : 0;
+  const flight = o.flight === "roll" ? "M100 40 Q130 26 150 36 L176 36"
+    : o.flight === "putt" ? "M100 36 L176 36"
+    : o.flight === "high" ? "M100 40 Q138 0 176 30" : "M100 40 Q138 14 176 34";
+  const backLabel = o.flight === "putt" ? "shoulders rock" : (o.back >= 12 ? "full" : "to " + (o.back % 1 ? Math.floor(o.back) + "½" : o.back) + " o'clock");
+  return `<svg viewBox="0 0 360 150" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Stance and swing size">
+    <rect x="0" y="0" width="190" height="150" fill="#eef3e6" rx="10"/>
+    <text x="8" y="16" font-size="11" fill="#5e564c">from above · target →</text>
+    <path d="${flight}" fill="none" stroke="#2d6a4f" stroke-width="2" stroke-dasharray="4 3"/>
+    <polygon points="176,30 186,36 176,42" fill="#2d6a4f"/>
+    <rect x="${cx - gap / 2 - 9}" y="${footY}" width="18" height="34" rx="8" fill="#5e564c"/>
+    <rect x="${cx + gap / 2 - 9}" y="${footY}" width="18" height="34" rx="8" fill="#5e564c"/>
+    <text x="${cx - gap / 2 - 12}" y="${footY + 48}" font-size="10" fill="#5e564c">back</text>
+    <text x="${cx + gap / 2 - 10}" y="${footY + 48}" font-size="10" fill="#5e564c">front</text>
+    <line x1="20" y1="80" x2="180" y2="80" stroke="#b9ad97" stroke-width="1"/>
+    <circle cx="${ballX}" cy="80" r="6" fill="#fff" stroke="#1c1915"/>
+    ${o.tee ? `<rect x="${ballX - 1.5}" y="86" width="3" height="8" fill="#8a5a12"/>` : ""}
+    <circle cx="${ox}" cy="${oy}" r="${r}" fill="#fffdf8" stroke="#d9cfbe"/>
+    <text x="${ox - 4}" y="${oy - r + 12}" font-size="10" fill="#5e564c">12</text>
+    <text x="${ox - r + 4}" y="${oy + 4}" font-size="10" fill="#5e564c">9</text>
+    <text x="${ox + r - 12}" y="${oy + 4}" font-size="10" fill="#5e564c">3</text>
+    <path d="M${ox} ${oy + r} A${r} ${r} 0 ${largeB} 1 ${ox + bx * r} ${oy + by * r}" fill="none" stroke="#8a3b2e" stroke-width="5" stroke-linecap="round"/>
+    <path d="M${ox} ${oy + r} A${r} ${r} 0 ${largeT} 0 ${ox + tx * r} ${oy + ty * r}" fill="none" stroke="#1b4332" stroke-width="5" stroke-linecap="round"/>
+    <text x="200" y="144" font-size="11" fill="#8a3b2e">back: ${backLabel}</text>
+    <text x="300" y="144" font-size="11" fill="#1b4332">through</text>
+  </svg>`;
+}
+function howCardHtml(h) {
+  return `<div class="card how">
+    <div class="kicker">How to hit it</div>
+    <h2>${esc(h.title)}</h2>
+    <div class="svg-wrap">${howSvg(h.svg)}</div>
+    <dl>
+      <dt>Club</dt><dd>${esc(h.club)}</dd>
+      <dt>Setup</dt><dd>${esc(h.setup)}</dd>
+      <dt>Swing size</dt><dd>${esc(h.swing)}</dd>
+      <dt>One feel</dt><dd><strong>${esc(h.feel)}</strong></dd>
+      <dt>Common miss + fix</dt><dd>${esc(h.miss)}</dd>
+    </dl>
+  </div>`;
+}
+function how() {
+  const h = HOWTO.find(x => x.id === ui.howId) || HOWTO[0];
+  const i = HOWTO.indexOf(h);
+  const prev = HOWTO[(i + HOWTO.length - 1) % HOWTO.length], next = HOWTO[(i + 1) % HOWTO.length];
+  return `
+    ${topBar("How to hit it", ui.howBack || "learn")}
+    ${howCardHtml(h)}
+    <div class="stack" style="margin-top:12px">
+      ${outLink(ytLink(h.yt), "Watch a short video (YouTube search)")}
+      <button class="ghost wide" data-act="speak-text" data-text="${esc(h.title + ". " + h.setup + " " + h.swing + " Feel: " + h.feel + " " + h.miss)}">Read it to me</button>
+      <div class="split">
+        <button class="ghost" data-act="open-how" data-id="${prev.id}" data-back="${esc(ui.howBack || "learn")}">◀ ${esc(prev.title.split(" ·")[0])}</button>
+        <button class="ghost" data-act="open-how" data-id="${next.id}" data-back="${esc(ui.howBack || "learn")}">${esc(next.title.split(" ·")[0])} ▶</button>
+      </div>
+    </div>
+    <p class="small" style="margin-top:10px">The video link opens YouTube search in your browser. Nothing is loaded until you tap it.</p>
+  `;
+}
+function learn() {
+  const tab = ui.learnTab || "how";
+  const tabBtn = (id, label) => `<button class="chip" data-act="learn-tab" data-tab="${id}" aria-pressed="${tab === id}">${label}</button>`;
+  let body = "";
+  if (tab === "how") {
+    body = HOWTO.map(h => `<button class="situ" data-act="open-how" data-id="${h.id}" data-back="learn"><strong>${esc(h.title)}</strong><span>${esc(h.feel)}</span></button>`).join("");
+  } else if (tab === "simple") {
+    body = `<p class="muted">For golfers who don't practice. Read anytime.</p>
+      <div class="card">${SIMPLIFY.map(r => `<div class="rule"><strong>${esc(r.t)}</strong><span>${esc(r.w)}</span></div>`).join("")}</div>
+      <div class="stack" style="margin-top:12px">
+        <button class="btn wide" data-act="share-simplify">Share these rules</button>
+        <button class="ghost wide" data-act="speak-text" data-text="${esc(SIMPLIFY.map(r => r.t + " " + r.w).join(" "))}">Read them to me</button>
+      </div>`;
+  } else {
+    body = `<button class="btn wide" data-act="one-thing">Give me one thing</button>
+      ${HEAD_CHECKS.map(t => `<div class="tip"><strong>${esc(t.title)}</strong><p class="small" style="margin:6px 0 0">${esc(t.text)}</p></div>`).join("")}`;
+  }
+  return `
+    ${topBar("Learn", "home")}
+    <h2>Learn.</h2>
+    <div class="row" style="margin-bottom:12px">${tabBtn("how", "How to hit it")}${tabBtn("simple", "Simplify the game")}${tabBtn("head", "Head check")}</div>
+    ${body}
+  `;
+}
+
+/* ---- Help a friend (separate storage) ---- */
+function activeFriend() { return friends.friends.find(f => f.id === friends.activeId) || null; }
+function friend() {
+  const f = activeFriend();
+  const list = friends.friends.map(x => `<button class="chip" data-act="friend-sel" data-id="${x.id}" aria-pressed="${f && f.id === x.id}">${esc(x.name || "Friend")}</button>`).join("");
+  let body = "";
+  if (f) {
+    const bag = friendBag(f);
+    const clubOpts = FRIEND_CLUBS.map(([id, name]) => `<option value="${id}" ${f.clubId === id ? "selected" : ""}>${esc(name)}</option>`).join("");
+    const fu = ui.friend;
+    const chips = [50, 75, 100, 125, 150, 175].map(y => `<button class="chip" data-act="friend-ydset" data-y="${y}" aria-pressed="${String(fu.yards) === String(y)}">${y}</button>`).join("");
+    body = `
+      <label class="field">Name</label>
+      <input id="fr-name" value="${esc(f.name)}" placeholder="Friend's name">
+      <label class="field">Have they played?</label>
+      <div class="row">
+        <button class="chip" data-act="friend-mode" data-never="0" aria-pressed="${!f.never}">Knows one club</button>
+        <button class="chip" data-act="friend-mode" data-never="1" aria-pressed="${!!f.never}">Never played</button>
+      </div>
