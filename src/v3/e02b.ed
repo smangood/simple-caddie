@@ -1,0 +1,190 @@
+        const k = Math.min(1, m / Math.max(img.width, img.height));
+        const cv = document.createElement("canvas");
+        cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+        cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+        cb(cv.toDataURL("image/jpeg", 0.72));
+      } catch (e) { cb(src); }
+    };
+    img.onerror = () => cb(src);
+    img.src = src;
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ===================== v3 screens ===================== */
+
+function whatsNewCard() {
+  if (!EXISTING_AT_START || data.whatsNewSeen === "3.0") return "";
+  return `<div class="card whatsnew">
+    <div class="kicker">What's new in v3</div>
+    <ul class="plain">${WHATS_NEW.map(w => `<li class="small">${esc(w)}</li>`).join("")}</ul>
+    <p class="small">All your clubs, rounds, range numbers and courses carried over.</p>
+    <button class="btn wide" data-act="whatsnew-ok">Got it</button>
+  </div>`;
+}
+
+function focus() {
+  const sel = data.focus || [];
+  const back = ui.focusBack || "home";
+  const rows = FOCUS_AREAS.map(a => `<button class="pick" data-act="focus-toggle" data-id="${a.id}" aria-pressed="${sel.includes(a.id)}">
+      <strong>${esc(a.label)}</strong><span>${esc(a.blurb)}</span></button>`).join("");
+  return `${topBar("Help me with", back)}
+    <h2>What do you want help with?</h2>
+    <p class="muted">Pick one or two. Practice and Learn put these first. Change it anytime.</p>
+    <div class="stack">${rows}</div>
+    <button class="btn wide" style="margin-top:14px" data-go="${back}">Done</button>
+    ${sel.length ? `<button class="ghost wide" style="margin-top:8px" data-act="focus-clear">Clear</button>` : ""}`;
+}
+
+function homeDrillCard(x, open) {
+  const d = x.d;
+  const done = (data.homeDrillLog || []).filter(l => l.id === d.id).length;
+  return `<details class="card drill" ${open ? "open" : ""}>
+    <summary><strong>${esc(d.title)}</strong><span class="small"> · ${d.minutes} min${x.focus ? " · your pick" : ""}${done ? " · done " + done + "×" : ""}</span></summary>
+    ${x.why ? `<p class="small nudge">${esc(x.why)}</p>` : ""}
+    <p class="small">${esc(d.where)}</p>
+    <ol class="steps">${d.steps.map(s => `<li>${esc(s)}</li>`).join("")}</ol>
+    <div class="split">
+      <button class="ghost" data-act="speak-text" data-text="${esc(d.title + ". " + d.steps.join(" "))}">Read it to me</button>
+      <button class="btn" data-act="home-done" data-id="${d.id}">Did it</button>
+    </div>
+  </details>`;
+}
+
+function athome() {
+  const list = orderedHomeDrills();
+  const nudges = trendNudges();
+  return `${topBar("At home", ui.athomeBack || "pro")}
+    ${flashHtml()}
+    <h2>Practice at home.</h2>
+    <p class="muted">No range, no internet. Ten minutes counts.</p>
+    ${nudges.length ? `<div class="tip"><strong>From your rounds</strong><p class="small" style="margin:4px 0 0">${esc(nudges[0].why)}</p></div>` : `<p class="small">Log rounds with putts on the scorecard and this page picks the drill for you.</p>`}
+    ${list.map((x, i) => homeDrillCard(x, i === 0)).join("")}
+    ${(() => { const t = trendStats(); const d = t.top && HOME_DRILLS[t.top]; return d ? `<div class="tip"><strong>20-minute version: ${esc(d.title)}</strong><ul class="plain">${d.steps.map(s => `<li class="small">${esc(s)}</li>`).join("")}</ul></div>` : ""; })()}
+  `;
+}
+
+function cheatsheet() {
+  const sec = (title, items) => `<h3>${esc(title)}</h3>` + items.map(t => `<div class="tip"><strong>${esc(t.title)}</strong><p class="small" style="margin:6px 0 0">${esc(t.text)}</p></div>`).join("");
+  return `${topBar("Range cheat sheet", "pro")}
+    <h2>Range cheat sheet.</h2>
+    <p class="muted">Drills, checkpoints and tips on one page. One at a time.</p>
+    ${sec("Drills", DRILLS)}${sec("What to look for", CHECKPOINTS)}${sec("Tips", TIPS)}
+    <button class="ghost wide" style="margin-top:8px" data-act="speak-text" data-text="${esc(DRILLS.concat(CHECKPOINTS, TIPS).map(t => t.title + ". " + t.text).join(" "))}">Read it all to me</button>`;
+}
+
+function budgetCard() {
+  const b = data.budget || {};
+  return `<div class="card">
+    <strong>Budget & goal</strong>
+    <label class="field">Rounds a year</label>
+    <div class="row">${ROUND_BUCKETS.map(([v, l]) => `<button class="chip" data-act="budget-rounds" data-v="${v}" aria-pressed="${String(b.rounds) === v}">${l}</button>`).join("")}</div>
+    <label class="field">Goal</label>
+    <div class="row">${GOALS.map(([v, l, s]) => `<button class="chip goal" data-act="budget-goal" data-v="${v}" aria-pressed="${b.goal === v}"><strong>${l}</strong><br><span>${s}</span></button>`).join("")}</div>
+    <p class="small" style="margin-top:10px">${esc(budgetAdvice())}</p>
+  </div>`;
+}
+
+function bagTuneup() {
+  const tu = data.tuneup || {};
+  const gs = gripSizeAdvice();
+  const ans = (qid, v) => tuneAns(qid) === v;
+  const photoCards = TUNEUP_PHOTOS.map(p => `<div class="card" style="margin-bottom:10px">
+      <strong>${esc(p.title)}</strong>
+      <p class="small"><b>How:</b> ${esc(p.how)}</p>
+      <p class="small"><b>Compare:</b> ${esc(p.ref)}</p>
+      <label class="filebtn">${tu.photos && tu.photos[p.id] ? "Retake photo" : "Take photo"}<input type="file" accept="image/*" capture="environment" data-tune-photo="${p.id}"></label>
+      ${tu.photos && tu.photos[p.id] ? `<img class="thumb" src="${tu.photos[p.id]}" alt="${esc(p.title)}">` : ""}
+      ${p.qs.map(q => `<p style="margin:10px 0 6px"><strong>${esc(q.q)}</strong></p>
+        <div class="row">${q.opts.map(([v, l]) => `<button class="chip" data-act="tune-ans" data-qid="${q.id}" data-v="${v}" aria-pressed="${ans(q.id, v)}">${esc(l)}</button>`).join("")}</div>`).join("")}
+    </div>`).join("");
+  const bagQs = BAG_PHOTO_CHECKS.map(ch => {
+    const a = data.bagAnswers[ch.id];
+    return `<div class="qrow"><p style="margin:0 0 6px"><strong>${esc(ch.q)}</strong></p>
+      <div class="row"><button class="chip" data-act="bag-ans" data-qid="${ch.id}" data-ans="yes" aria-pressed="${a === "yes"}">Yes</button>
+      <button class="chip" data-act="bag-ans" data-qid="${ch.id}" data-ans="no" aria-pressed="${a === "no"}">No</button></div>
+      ${a ? `<p class="small">${a === ch.good ? "Good. " : "Fix: "}${esc(ch.tip)}</p>` : ""}</div>`;
+  }).join("");
+  const fx = tuneupFixes();
+  const tier = (title, cost, items, empty) => `<div class="fix"><div class="fixhead"><strong>${title}</strong><span class="small">${cost}</span></div>
+    ${items.length ? `<ul class="plain">${items.map(i => `<li class="small">${esc(i)}</li>`).join("")}</ul>` : `<p class="small">${empty}</p>`}</div>`;
+  const lens = clubLengthNote();
+  return `${topBar("Bag tune-up", "bag")}
+    ${flashHtml()}
+    <h2>Bag tune-up.</h2>
+    <p class="muted">Ten minutes with a tape measure and your phone. Fixes come out cheapest first.</p>
+
+    <h3>1 · Measure you</h3>
+    <div class="card">
+      <label class="field" style="margin-top:0">Height (inches, e.g. 70 = 5'10")</label>
+      <input id="tu-height" inputmode="decimal" value="${esc(data.golferHeightIn)}" placeholder="e.g. 70">
+      <label class="field">Wrist-to-floor (inches) — stand tall in flat shoes, arms hanging, measure from the crease of your wrist to the floor</label>
+      <input id="tu-wrist" inputmode="decimal" value="${esc(tu.wristFloorIn)}" placeholder="e.g. 34">
+      <label class="field">Glove size</label>
+      <div class="row">${GLOVE_SIZES.map(([v, l]) => `<button class="chip" data-act="tune-glove" data-v="${v}" aria-pressed="${tu.glove === v}">${l}</button>`).join("")}</div>
+      <label class="field">…or hand length (inches) — top-hand wrist crease to the tip of your middle finger</label>
+      <input id="tu-hand" inputmode="decimal" value="${esc(tu.handIn)}" placeholder="e.g. 7.5">
+    </div>
+
+    <h3>2 · Measure the clubs</h3>
+    <div class="card">
+      <p class="small">Stand the club on a hard floor in its playing position (sole flat). Run a tape along the back of the shaft from the floor to the end of the grip cap. Within ¼" is fine.</p>
+      <label class="field">7-iron length (inches) — standard men's steel is about 37"</label>
+      <input id="tu-len7" inputmode="decimal" value="${esc(tu.len7)}" placeholder="e.g. 37">
+      <label class="field">Driver length (inches) — G425 Max standard is about 45.75"</label>
+      <input id="tu-lendr" inputmode="decimal" value="${esc(tu.lenDR)}" placeholder="e.g. 45.75">
+      <label class="field">Putter length (inches) — same way, floor to the top of the grip</label>
+      <input id="tu-putter" inputmode="decimal" value="${esc(data.putterLengthIn)}" placeholder="e.g. 35">
+      <button class="btn wide" style="margin-top:12px" data-act="tune-save">Save measurements</button>
+      ${gs ? `<p class="small" style="margin-top:10px"><strong>Grip size: ${esc(gs.size)}</strong> (${esc(gs.why)}; Golf Pride size chart).</p>` : ""}
+      <p class="small">${esc(staticFitNote())}</p>
+      ${lens.map(l => `<p class="small">${esc(l)}</p>`).join("")}
+    </div>
+
+    <h3>3 · Three photos, then tap what you see</h3>
+    <p class="small">Photos stay on this phone (shrunk to save space).</p>
+    ${photoCards}
+
+    <h3>4 · Whole bag</h3>
+    <div class="card">${bagQs}</div>
+
+    <h3>5 · Your fixes, cheapest first</h3>
+    ${tier("1. Free setup change", "$0", fx.free, "Nothing flagged. Answer the photo questions above.")}
+    ${tier("2. Regrip", TUNEUP_COSTS.regrip, fx.regrip, "Grips look OK. Check again each spring.")}
+    ${tier("3. Shop: cut, extend or bend the lie", "about $5–17 per club", fx.shop, "No length or lie work needed from what you've tapped.")}
+    ${tier("4. Replace a club", "only when the data earns it", fx.replace, "Nothing has earned a replacement. Keep playing what you have.")}
+    <div class="stack" style="margin-top:12px">
+      <button class="ghost wide" data-act="bag-panel" data-panel="guide">Club guide · what to buy</button>
+      <button class="ghost wide" data-act="bag-panel" data-panel="main">Back to bag</button>
+    </div>`;
+}
+
+function bagGuide() {
+  const tier = ui.guideTier || goalOf() || "save";
+  const flagged = new Set();
+  data.clubs.filter(c => c.inBag && c.id !== "PU").forEach(c => { const v = costVerdict(c); if (!v.keep && !/regrip/i.test(v.title)) { const t = guideTypeFor(c); if (t) flagged.add(t.id); } });
+  const types = CLUB_GUIDE.types.slice().sort((a, b) => (flagged.has(b.id) ? 1 : 0) - (flagged.has(a.id) ? 1 : 0));
+  const tierName = (GOALS.find(g => g[0] === tier) || [])[1];
+  const cards = types.map(t => `<div class="card guide" style="margin-bottom:10px">
+      <div class="kicker" style="margin:0">${flagged.has(t.id) ? "Your data says look here" : "Club type"}</div>
+      <h3 style="margin:2px 0 4px">${esc(t.type)}</h3>
+      <p class="small">${esc(t.role)}</p>
+      ${t.keep ? `<p class="small"><strong>${esc(t.keep)}</strong></p>` : ""}
+      ${guideExamples(t, tier).map(e => `<div class="ex">
+        <div><strong>${esc(e.model)}</strong> <span class="small">· ${esc(e.years)}</span></div>
+        <div class="small">${esc(e.why)}</div>
+        <div class="small"><span class="price">${esc(e.price)}</span> · <a href="${shopLink(e.model, tier)}" target="_blank" rel="noopener">search listings</a></div>
+      </div>`).join("")}
+    </div>`).join("");
+  return `${topBar("Club guide", "bag")}
+    <h2>What to buy — if anything.</h2>
+    <p class="muted">Club type first, then real examples for your budget. Cheapest fix first still applies: regrip and keep beats buying.</p>
+    <div class="row" style="margin-bottom:8px">${GOALS.map(([v, l]) => `<button class="chip" data-act="guide-tier" data-v="${v}" aria-pressed="${tier === v}">${l}</button>`).join("")}</div>
+    <p class="small"><strong>${esc(tierName)}:</strong> ${esc(CLUB_GUIDE.where[tier])}</p>
+    ${roundsOf() ? `<p class="small">${esc(budgetAdvice().split(". ")[0])}.</p>` : ""}
+    <p class="small lastchecked">Models and prices last checked ${esc(CLUB_GUIDE.lastChecked)}. Prices move — the links search live listings (needs internet).</p>
+    ${cards}
+    <button class="ghost wide" data-act="bag-panel" data-panel="main">Back to bag</button>`;
+}
+
+.
