@@ -1,0 +1,12 @@
+3370c
+      <label class="filebtn">${tu.photos && tu.photos[p.id] ? "Retake photo" : "Take photo"}<input type="file" accept="image/*" data-tune-photo="${p.id}"></label>
+.
+2909c
+      <input type="file" accept="image/*" data-club-photo="${c.id}">
+.
+2877c
+        <input type="file" accept="image/*" id="bag-photo-input">
+.
+2268c
+      <input type="file" accept="image/*" data-wear-photo="${c.id}" data-wear-field="${f.id}">
+.
